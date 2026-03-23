@@ -1,0 +1,119 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  width: 280px;
+  background: #fff;
+  color: #222;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #00897b;
+  color: #fff;
+}
+
+#user-label {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+
+.toggle-pill {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.6);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: background .12s, color .12s;
+}
+.toggle-pill.on {
+  background: rgba(255,255,255,0.9);
+  color: #00897b;
+  font-weight: 600;
+  border-color: transparent;
+}
+.toggle-pill:hover { opacity: .85; }
+
+#open-options {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.85);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+#open-options:hover { color: #fff; }
+
+main { padding: 10px 12px; }
+
+.view { display: block; }
+.view.hidden { display: none; }
+
+.muted { color: #777; }
+.small { font-size: 11px; margin-top: 3px; }
+main p { margin: 6px 0; }
+
+#provider-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #00897b;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 6px;
+}
+
+#nonce-list {
+  list-style: none;
+}
+
+#nonce-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  transition: background .12s;
+}
+#nonce-list li:hover { background: #f0faf9; border-color: #00897b; }
+#nonce-list li:active { background: #e0f2f1; }
+
+.nonce-value {
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: #111;
+}
+
+.nonce-age {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+#no-nonces { margin-top: 4px; }
+
+#go-options {
+  margin-top: 8px;
+  padding: 5px 12px;
+  background: #00897b;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+#go-options:hover { background: #00796b; }

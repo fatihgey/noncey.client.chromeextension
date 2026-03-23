@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>noncey — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div id="app">
+    <h1>noncey settings</h1>
+
+    <!-- ── Account ───────────────────────────────────────────────────── -->
+    <section id="section-account">
+      <h2>Account</h2>
+
+      <div class="field">
+        <label for="server">Server URL</label>
+        <input id="server" type="url" placeholder="https://nonces.yourdomain.com"
+               spellcheck="false" autocomplete="off">
+      </div>
+
+      <div id="auth-status"></div>
+
+      <div id="login-form">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" type="text" autocomplete="username" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password">
+          <p class="hint">Your password is used once to obtain a session token and is never stored.</p>
+        </div>
+        <div class="row">
+          <button id="login-btn" class="btn-primary">Log in</button>
+          <span id="login-error" class="error hidden"></span>
+        </div>
+      </div>
+
+      <div id="logout-row" class="hidden">
+        <button id="logout-btn" class="btn-danger">Log out</button>
+      </div>
+    </section>
+
+    <!-- ── Providers ─────────────────────────────────────────────────── -->
+    <section id="section-providers">
+      <h2>Providers</h2>
+      <p class="hint">
+        Each provider connects a server-side tag (configured in the noncey admin UI)
+        to a URL pattern and the OTP input field on that site.
+      </p>
+
+      <div id="provider-list"></div>
+
+      <button id="add-provider-btn" class="btn-primary">+ Add provider</button>
+    </section>
+
+    <div id="save-bar" class="hidden">
+      <button id="save-btn" class="btn-primary">Save changes</button>
+      <span id="save-status"></span>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
