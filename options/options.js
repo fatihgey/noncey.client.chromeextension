@@ -132,7 +132,7 @@ function buildCard(provider, index) {
 
   card.innerHTML = `
     <div class="provider-header">
-      <span class="provider-tag-label">${escHtml(provider.tag || 'new provider')}</span>
+      <span class="provider-tag-label">${escHtml(provider.tag || 'new provider prompt')}</span>
       <button class="btn-small btn-danger remove-btn">Remove</button>
     </div>
 
@@ -179,7 +179,7 @@ function buildCard(provider, index) {
 
   card.querySelector('.tag-input').addEventListener('input', e => {
     providers[index].tag = e.target.value.trim();
-    card.querySelector('.provider-tag-label').textContent = providers[index].tag || 'new provider';
+    card.querySelector('.provider-tag-label').textContent = providers[index].tag || 'new provider prompt';
     markDirty();
   });
 
@@ -271,8 +271,14 @@ async function renderConfigs() {
 
   const resp = await chrome.runtime.sendMessage({ type: 'GET_CONFIGS' });
 
+  if (resp.error === 'AUTH_EXPIRED') {
+    list.innerHTML = '<p class="muted">Session expired — please log in again.</p>';
+    hide('refresh-configs-btn');
+    await renderAccount(); // re-sync account section so it no longer shows "Logged in"
+    return;
+  }
   if (resp.error) {
-    list.innerHTML = `<p class="muted">Error: ${escHtml(resp.error)}</p>`;
+    list.innerHTML = `<p class="muted">Error loading configurations: ${escHtml(resp.error)}</p>`;
     return;
   }
 

@@ -21,7 +21,7 @@
 
       <div id="auth-status"></div>
 
-      <div id="login-form">
+      <div id="login-form" class="hidden">
         <div class="field">
           <label for="username">Username</label>
           <input id="username" type="text" autocomplete="username" spellcheck="false">
@@ -42,17 +42,17 @@
       </div>
     </section>
 
-    <!-- ── Providers ─────────────────────────────────────────────────── -->
+    <!-- ── Provider Prompts ────────────────────────────────────────── -->
     <section id="section-providers">
-      <h2>Providers</h2>
+      <h2>Provider Prompts</h2>
       <p class="hint">
-        Each provider connects a server-side tag (configured in the noncey admin UI)
-        to a URL pattern and the OTP input field on that site.
+        Each provider prompt connects a server-side provider tag to a URL pattern
+        and the OTP input field on that site.
       </p>
 
       <div id="provider-list"></div>
 
-      <button id="add-provider-btn" class="btn-primary">+ Add provider</button>
+      <button id="add-provider-btn" class="btn-primary">+ Add provider prompt</button>
     </section>
 
     <!-- ── Configurations ───────────────────────────────────────────── -->
