@@ -2,7 +2,23 @@
 
 Browser-side component of noncey. Polls the noncey daemon for OTP nonces and fills OTP fields automatically.
 
-## Loading the extension
+## Installation (Windows)
+
+Run the included installer from a Command Prompt opened in the cloned directory:
+
+```
+install.bat
+```
+
+The script self-elevates to Administrator, copies the extension files to
+`C:\Program Files\noncey\client\`, and prints the steps to load it in Chrome.
+
+After pulling updates, re-run `install.bat` and click the **↺** reload button
+next to noncey in `chrome://extensions`.
+
+## Loading the extension manually
+
+If you prefer not to use the installer:
 
 1. Open Chrome and navigate to `chrome://extensions`
 2. Enable **Developer mode** (toggle, top-right)
