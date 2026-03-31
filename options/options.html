@@ -55,6 +55,19 @@
       <button id="add-provider-btn" class="btn-primary">+ Add provider</button>
     </section>
 
+    <!-- ── Configurations ───────────────────────────────────────────── -->
+    <section id="section-configs">
+      <h2>Configurations</h2>
+      <p class="hint">
+        Prompts store how to fill the OTP field for each server configuration
+        (CSS selector or fill instructions). Saved locally in your browser.
+      </p>
+      <div id="config-list">
+        <p class="muted" id="configs-placeholder">Log in to load configurations.</p>
+      </div>
+      <button id="refresh-configs-btn" class="btn-small hidden">↺ Refresh</button>
+    </section>
+
     <div id="save-bar" class="hidden">
       <button id="save-btn" class="btn-primary">Save changes</button>
       <span id="save-status"></span>

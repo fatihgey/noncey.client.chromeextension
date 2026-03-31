@@ -15,12 +15,14 @@ let pendingPickerCardId = null;
 document.addEventListener('DOMContentLoaded', async () => {
   await renderAccount();
   await renderProviders();
+  await renderConfigs();
 
   $('login-btn').addEventListener('click', doLogin);
   $('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   $('logout-btn').addEventListener('click', doLogout);
   $('add-provider-btn').addEventListener('click', addProvider);
   $('save-btn').addEventListener('click', saveProviders);
+  $('refresh-configs-btn').addEventListener('click', renderConfigs);
 
   // Listen for picker results written by background.js into session storage.
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -85,6 +87,7 @@ async function doLogin() {
 
   $('password').value = '';
   await renderAccount();
+  await renderConfigs();
 }
 
 function showLoginError(msg) {
@@ -98,6 +101,7 @@ async function doLogout() {
   await chrome.runtime.sendMessage({ type: 'LOGOUT' });
   $('logout-btn').disabled = false;
   await renderAccount();
+  await renderConfigs();
 }
 
 // ── Providers section ─────────────────────────────────────────────────────────
@@ -248,6 +252,104 @@ async function startPicker(providerIndex) {
     target: { tabId: tab.id },
     files:  ['../picker.js'],
   });
+}
+
+// ── Configurations section ────────────────────────────────────────────────────
+
+async function renderConfigs() {
+  const { token } = await chrome.storage.sync.get('token');
+  const list = $('config-list');
+
+  if (!token) {
+    list.innerHTML = '<p class="muted" id="configs-placeholder">Log in to load configurations.</p>';
+    hide('refresh-configs-btn');
+    return;
+  }
+
+  show('refresh-configs-btn');
+  list.innerHTML = '<p class="muted" id="configs-placeholder">Loading…</p>';
+
+  const resp = await chrome.runtime.sendMessage({ type: 'GET_CONFIGS' });
+
+  if (resp.error) {
+    list.innerHTML = `<p class="muted">Error: ${escHtml(resp.error)}</p>`;
+    return;
+  }
+
+  list.innerHTML = '';
+
+  if (resp.configs.length === 0) {
+    list.innerHTML = '<p class="muted">No active configurations found on the server.</p>';
+    return;
+  }
+
+  for (const cfg of resp.configs) {
+    list.appendChild(await buildConfigCard(cfg));
+  }
+}
+
+async function buildConfigCard(cfg) {
+  const key    = `prompt:${cfg.name}:${cfg.version}`;
+  const stored = await chrome.storage.sync.get(key);
+  const prompt = stored[key] || '';
+
+  // Badge: server says prompt_assigned, or we have a local prompt stored.
+  const hasPrompt = cfg.prompt_assigned || prompt.length > 0;
+
+  const card = document.createElement('div');
+  card.className = 'config-card';
+
+  const badgeHtml = hasPrompt
+    ? '<span class="badge badge-ok">prompt ✓</span>'
+    : '<span class="badge badge-warn">no prompt</span>';
+
+  card.innerHTML = `
+    <div class="config-header">
+      <span class="config-name-label">${escHtml(cfg.name)}</span>
+      <span class="config-version">${escHtml(cfg.version)}</span>
+      ${badgeHtml}
+    </div>
+    <div class="field">
+      <label>Prompt</label>
+      <textarea class="prompt-input" rows="3"
+        placeholder="CSS selector or fill instructions (leave blank for manual fill)"
+        spellcheck="false">${escHtml(prompt)}</textarea>
+      <p class="hint">
+        Stored locally. A prompt tells the extension how to fill the OTP field for
+        this configuration (e.g. <code>#otp-field</code>).
+      </p>
+    </div>
+    <div class="config-actions">
+      <button class="btn-primary btn-small save-prompt-btn">Save prompt</button>
+      <span class="save-prompt-status"></span>
+    </div>
+  `;
+
+  card.querySelector('.save-prompt-btn').addEventListener('click', async () => {
+    const val       = card.querySelector('.prompt-input').value.trim();
+    const statusEl  = card.querySelector('.save-prompt-status');
+    const badgeEl   = card.querySelector('.badge');
+
+    await chrome.storage.sync.set({ [key]: val });
+
+    // Notify daemon if a non-empty prompt was just stored and flag not yet set.
+    if (val && !cfg.prompt_assigned) {
+      const r = await chrome.runtime.sendMessage({ type: 'SET_PROMPT_ASSIGNED', id: cfg.id });
+      if (!r.error) {
+        cfg.prompt_assigned = true;
+      }
+    }
+
+    // Update badge in place.
+    const nowHasPrompt = cfg.prompt_assigned || val.length > 0;
+    badgeEl.className   = 'badge ' + (nowHasPrompt ? 'badge-ok' : 'badge-warn');
+    badgeEl.textContent = nowHasPrompt ? 'prompt ✓' : 'no prompt';
+
+    statusEl.textContent = '✓ Saved';
+    setTimeout(() => { statusEl.textContent = ''; }, 2000);
+  });
+
+  return card;
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

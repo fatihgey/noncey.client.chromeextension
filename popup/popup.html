@@ -29,7 +29,11 @@
 
       <!-- shown when authenticated and a provider matches -->
       <div id="view-nonces" class="view hidden">
-        <div id="provider-label"></div>
+        <div id="config-bar">
+          <span id="config-label"></span>
+          <button id="config-change-btn" class="btn-link">Change</button>
+        </div>
+        <div id="config-selector" class="hidden"></div>
         <ul id="nonce-list"></ul>
         <p id="no-nonces" class="muted hidden">Waiting for nonces…</p>
       </div>

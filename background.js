@@ -122,6 +122,17 @@ async function handleMessage(msg, sender) {
 
     // Options page injects picker.js into the active tab, then listens for
     // PICKER_RESULT via chrome.storage.session.onChanged.
+    case 'GET_CONFIGS': {
+      const res  = await apiFetch('GET', '/api/configs');
+      const data = await res.json();
+      return { configs: data };
+    }
+
+    case 'SET_PROMPT_ASSIGNED': {
+      await apiFetch('POST', `/api/configs/${msg.id}/prompt-assigned`);
+      return { ok: true };
+    }
+
     case 'PICKER_RESULT': {
       await chrome.storage.session.set({
         pickerResult: { selector: msg.selector, ts: Date.now() },

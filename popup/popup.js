@@ -19,8 +19,9 @@ function truncate(str, max = 14) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let activeProvider = null;  // matched provider for the current tab
 let pollTimer      = null;
+let activeConfigName = null;  // null = show all; string = filter to that config
+let knownConfigs   = [];       // unique config names seen in last nonce response
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -46,27 +47,72 @@ let pollTimer      = null;
   });
 
   // Determine if current tab URL matches a configured provider.
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const url   = tab?.url || '';
+  const [tab]    = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url      = tab?.url || '';
   const providers = storage.providers || [];
-  activeProvider  = providers.find(p => p.url_pattern && url.includes(p.url_pattern));
+  const matched  = providers.find(p => p.url_pattern && url.includes(p.url_pattern));
 
-  if (!activeProvider) {
+  if (!matched) {
     show('view-no-match');
     return;
   }
 
+  // Load active config selection from local storage.
+  const local = await chrome.storage.local.get('activeConfigName');
+  activeConfigName = local.activeConfigName ?? null;
+
   show('view-nonces');
-  $('provider-label').textContent = activeProvider.tag;
+  renderConfigBar();
+
+  $('config-change-btn').addEventListener('click', toggleConfigSelector);
 
   // Poll while the popup is open.
   await fetchAndRender();
   pollTimer = setInterval(fetchAndRender, 2000);
 })();
 
-// Clean up timer when popup closes (the popup context is destroyed, but
-// setInterval is cleared immediately to avoid any last-tick work).
+// Clean up timer when popup closes.
 window.addEventListener('unload', () => clearInterval(pollTimer));
+
+// ── Config bar ────────────────────────────────────────────────────────────────
+
+function renderConfigBar() {
+  $('config-label').textContent = activeConfigName ?? 'All configurations';
+}
+
+function toggleConfigSelector() {
+  const sel = $('config-selector');
+  if (!sel.classList.contains('hidden')) {
+    hide('config-selector');
+    return;
+  }
+
+  sel.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'config-option' + (activeConfigName === null ? ' active' : '');
+  allBtn.textContent = 'All configurations';
+  allBtn.addEventListener('click', () => selectConfig(null));
+  sel.appendChild(allBtn);
+
+  for (const name of knownConfigs) {
+    const btn = document.createElement('button');
+    btn.className = 'config-option' + (activeConfigName === name ? ' active' : '');
+    btn.textContent = name;
+    btn.addEventListener('click', () => selectConfig(name));
+    sel.appendChild(btn);
+  }
+
+  show('config-selector');
+}
+
+async function selectConfig(name) {
+  activeConfigName = name;
+  await chrome.storage.local.set({ activeConfigName: name });
+  hide('config-selector');
+  renderConfigBar();
+  await fetchAndRender();
+}
 
 // ── Fetch + render ────────────────────────────────────────────────────────────
 
@@ -86,8 +132,19 @@ async function fetchAndRender() {
   }
   if (resp.error || !resp.nonces) return;
 
-  // Show only nonces for the active provider.
-  const nonces = resp.nonces.filter(n => n.provider_tag === activeProvider.tag);
+  // Update known configs from nonce data (deduplicated, sorted).
+  const seen = [...new Set(
+    resp.nonces.map(n => n.configuration_name).filter(Boolean)
+  )].sort();
+  if (JSON.stringify(seen) !== JSON.stringify(knownConfigs)) {
+    knownConfigs = seen;
+  }
+
+  // Filter nonces by active config (or show all).
+  let nonces = resp.nonces;
+  if (activeConfigName !== null) {
+    nonces = nonces.filter(n => n.configuration_name === activeConfigName);
+  }
 
   const list = $('nonce-list');
   list.innerHTML = '';
@@ -106,11 +163,15 @@ async function fetchAndRender() {
     valSpan.className   = 'nonce-value';
     valSpan.textContent = truncate(nonce.nonce_value);
 
+    const tagSpan = document.createElement('span');
+    tagSpan.className   = 'nonce-tag';
+    tagSpan.textContent = nonce.provider_tag;
+
     const ageSpan = document.createElement('span');
     ageSpan.className   = 'nonce-age';
     ageSpan.textContent = formatAge(nonce.age_seconds);
 
-    li.append(valSpan, ageSpan);
+    li.append(valSpan, tagSpan, ageSpan);
     li.addEventListener('click', () => onNonceClick(nonce));
     list.appendChild(li);
   }
@@ -119,29 +180,29 @@ async function fetchAndRender() {
 // ── Fill action ───────────────────────────────────────────────────────────────
 
 async function onNonceClick(nonce) {
-  if (!activeProvider.selector) {
-    // No selector configured — just copy to clipboard.
+  // Look up the matching provider by tag to get its CSS selector.
+  const { providers = [] } = await chrome.storage.sync.get('providers');
+  const provider = providers.find(p => p.tag === nonce.provider_tag);
+
+  if (!provider?.selector) {
     await navigator.clipboard.writeText(nonce.nonce_value).catch(() => {});
     return;
   }
 
-  // Send fill request to the content script in the active tab.
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {
     const resp = await chrome.tabs.sendMessage(tab.id, {
       type:     'FILL_FIELD',
       value:    nonce.nonce_value,
-      selector: activeProvider.selector,
+      selector: provider.selector,
     });
     if (resp?.ok) {
-      // Remove from server after successful fill.
       chrome.runtime.sendMessage({ type: 'DELETE_NONCE', id: nonce.id }).catch(() => {});
       window.close();
     } else if (resp?.error) {
       console.warn('noncey fill error:', resp.error);
     }
   } catch {
-    // Content script not present (e.g. chrome:// page) — fall back to clipboard.
     await navigator.clipboard.writeText(nonce.nonce_value).catch(() => {});
   }
 }
