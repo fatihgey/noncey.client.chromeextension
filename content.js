@@ -17,11 +17,17 @@
   // Tell the service worker to show the active (coloured) icon for this tab.
   chrome.runtime.sendMessage({ type: 'SET_ICON', active: true }).catch(() => {});
 
-  // Track autoFill preference reactively so the popup toggle takes effect immediately.
+  // Track autoFill and activeConfigName reactively.
   let autoFill = storage.autoFill !== false;
+  const localInit = await chrome.storage.local.get('activeConfigName');
+  let activeConfigName = localInit.activeConfigName ?? null;
+
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync' && 'autoFill' in changes) {
       autoFill = changes.autoFill.newValue !== false;
+    }
+    if (area === 'local' && 'activeConfigName' in changes) {
+      activeConfigName = changes.activeConfigName.newValue ?? null;
     }
   });
 
@@ -46,6 +52,8 @@
     for (const nonce of resp.nonces) {
       // Filter to nonces belonging to this provider.
       if (nonce.provider_tag !== provider.tag) continue;
+      // Respect active config selection (null = show all).
+      if (activeConfigName !== null && nonce.configuration_name !== activeConfigName) continue;
       if (seenIds.has(nonce.id)) continue;
 
       seenIds.add(nonce.id);

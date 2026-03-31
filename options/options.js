@@ -283,19 +283,40 @@ async function renderConfigs() {
     return;
   }
 
+  // Batch-read all prompt keys at once.
+  const keys = resp.configs.map(c => `prompt:${c.name}:${c.version}`);
+  const storedPrompts = await chrome.storage.sync.get(keys);
+
+  // Detect configs that need a prompt (no local prompt and not yet flagged on server).
+  const needingPrompt = resp.configs.filter(c => {
+    const key = `prompt:${c.name}:${c.version}`;
+    return !c.prompt_assigned && !storedPrompts[key];
+  });
+
+  if (needingPrompt.length > 0) {
+    const banner = document.createElement('div');
+    banner.className = 'prompt-banner';
+    const n = needingPrompt.length;
+    banner.textContent =
+      `${n} configuration${n > 1 ? 's' : ''} ${n > 1 ? 'need' : 'needs'} a prompt — ` +
+      `fill in the field${n > 1 ? 's' : ''} below to enable auto-fill.`;
+    list.appendChild(banner);
+  }
+
   for (const cfg of resp.configs) {
-    list.appendChild(await buildConfigCard(cfg));
+    const key    = `prompt:${cfg.name}:${cfg.version}`;
+    const prompt = storedPrompts[key] || '';
+    const card   = buildConfigCard(cfg, prompt);
+    if (!cfg.prompt_assigned && !prompt) card.classList.add('config-card-needs-prompt');
+    list.appendChild(card);
   }
 }
 
-async function buildConfigCard(cfg) {
-  const key    = `prompt:${cfg.name}:${cfg.version}`;
-  const stored = await chrome.storage.sync.get(key);
-  const prompt = stored[key] || '';
-
+function buildConfigCard(cfg, prompt) {
   // Badge: server says prompt_assigned, or we have a local prompt stored.
   const hasPrompt = cfg.prompt_assigned || prompt.length > 0;
 
+  const key  = `prompt:${cfg.name}:${cfg.version}`;
   const card = document.createElement('div');
   card.className = 'config-card';
 
@@ -326,24 +347,23 @@ async function buildConfigCard(cfg) {
   `;
 
   card.querySelector('.save-prompt-btn').addEventListener('click', async () => {
-    const val       = card.querySelector('.prompt-input').value.trim();
-    const statusEl  = card.querySelector('.save-prompt-status');
-    const badgeEl   = card.querySelector('.badge');
+    const val      = card.querySelector('.prompt-input').value.trim();
+    const statusEl = card.querySelector('.save-prompt-status');
+    const badgeEl  = card.querySelector('.badge');
 
     await chrome.storage.sync.set({ [key]: val });
 
     // Notify daemon if a non-empty prompt was just stored and flag not yet set.
     if (val && !cfg.prompt_assigned) {
       const r = await chrome.runtime.sendMessage({ type: 'SET_PROMPT_ASSIGNED', id: cfg.id });
-      if (!r.error) {
-        cfg.prompt_assigned = true;
-      }
+      if (!r.error) cfg.prompt_assigned = true;
     }
 
-    // Update badge in place.
+    // Update badge and card highlight in place.
     const nowHasPrompt = cfg.prompt_assigned || val.length > 0;
     badgeEl.className   = 'badge ' + (nowHasPrompt ? 'badge-ok' : 'badge-warn');
     badgeEl.textContent = nowHasPrompt ? 'prompt ✓' : 'no prompt';
+    if (nowHasPrompt) card.classList.remove('config-card-needs-prompt');
 
     statusEl.textContent = '✓ Saved';
     setTimeout(() => { statusEl.textContent = ''; }, 2000);

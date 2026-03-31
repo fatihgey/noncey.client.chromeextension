@@ -182,6 +182,21 @@ textarea.prompt-input:focus {
 
 #refresh-configs-btn { margin-top: 4px; }
 
+.prompt-banner {
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 4px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #5d4037;
+  margin-bottom: 12px;
+}
+
+.config-card-needs-prompt {
+  border-color: #ffca28;
+  background: #fffde7;
+}
+
 /* Save bar */
 #save-bar {
   position: sticky;

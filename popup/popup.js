@@ -21,7 +21,8 @@ function truncate(str, max = 14) {
 
 let pollTimer      = null;
 let activeConfigName = null;  // null = show all; string = filter to that config
-let knownConfigs   = [];       // unique config names seen in last nonce response
+let knownConfigs   = [];      // unique config names seen in last nonce response
+let configMeta     = [];      // [{id, name, version, prompt_assigned}] from GET /api/configs
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,6 @@ let knownConfigs   = [];       // unique config names seen in last nonce respons
 
   $('user-label').textContent = storage.username || 'noncey';
 
-  // Auto-fill toggle — persisted in chrome.storage.sync, default on.
   const toggleBtn = $('autofill-toggle');
   toggleBtn.classList.toggle('on', storage.autoFill !== false);
   toggleBtn.addEventListener('click', async () => {
@@ -46,38 +46,51 @@ let knownConfigs   = [];       // unique config names seen in last nonce respons
     await chrome.storage.sync.set({ autoFill: next });
   });
 
-  // Determine if current tab URL matches a configured provider.
-  const [tab]    = await chrome.tabs.query({ active: true, currentWindow: true });
-  const url      = tab?.url || '';
+  const [tab]     = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url       = tab?.url || '';
   const providers = storage.providers || [];
-  const matched  = providers.find(p => p.url_pattern && url.includes(p.url_pattern));
+  const matched   = providers.find(p => p.url_pattern && url.includes(p.url_pattern));
 
   if (!matched) {
     show('view-no-match');
     return;
   }
 
-  // Load active config selection from local storage.
-  const local = await chrome.storage.local.get('activeConfigName');
+  // Load active config selection and server config metadata in parallel.
+  const [local, configsResp] = await Promise.all([
+    chrome.storage.local.get('activeConfigName'),
+    chrome.runtime.sendMessage({ type: 'GET_CONFIGS' }).catch(() => ({})),
+  ]);
+
   activeConfigName = local.activeConfigName ?? null;
+  if (!configsResp.error && configsResp.configs) {
+    configMeta = configsResp.configs;
+  }
 
   show('view-nonces');
   renderConfigBar();
 
   $('config-change-btn').addEventListener('click', toggleConfigSelector);
 
-  // Poll while the popup is open.
+  // Prompt notice — shown once at boot if any config has no local prompt stored.
+  await checkPromptNotice();
+
   await fetchAndRender();
   pollTimer = setInterval(fetchAndRender, 2000);
 })();
 
-// Clean up timer when popup closes.
 window.addEventListener('unload', () => clearInterval(pollTimer));
 
 // ── Config bar ────────────────────────────────────────────────────────────────
 
+function configDisplayName(name) {
+  if (!name) return 'All configurations';
+  const meta = configMeta.find(c => c.name === name);
+  return meta ? `${name} · ${meta.version}` : name;
+}
+
 function renderConfigBar() {
-  $('config-label').textContent = activeConfigName ?? 'All configurations';
+  $('config-label').textContent = configDisplayName(activeConfigName);
 }
 
 function toggleConfigSelector() {
@@ -95,11 +108,16 @@ function toggleConfigSelector() {
   allBtn.addEventListener('click', () => selectConfig(null));
   sel.appendChild(allBtn);
 
-  for (const name of knownConfigs) {
+  // Prefer configMeta (has version); fall back to names from nonce data.
+  const options = configMeta.length > 0
+    ? configMeta.map(c => ({ name: c.name, label: `${c.name} · ${c.version}` }))
+    : knownConfigs.map(name => ({ name, label: name }));
+
+  for (const opt of options) {
     const btn = document.createElement('button');
-    btn.className = 'config-option' + (activeConfigName === name ? ' active' : '');
-    btn.textContent = name;
-    btn.addEventListener('click', () => selectConfig(name));
+    btn.className = 'config-option' + (activeConfigName === opt.name ? ' active' : '');
+    btn.textContent = opt.label;
+    btn.addEventListener('click', () => selectConfig(opt.name));
     sel.appendChild(btn);
   }
 
@@ -114,6 +132,27 @@ async function selectConfig(name) {
   await fetchAndRender();
 }
 
+// ── Prompt notice ─────────────────────────────────────────────────────────────
+
+async function checkPromptNotice() {
+  if (configMeta.length === 0) return;
+
+  const keys = configMeta.map(c => `prompt:${c.name}:${c.version}`);
+  const stored = await chrome.storage.sync.get(keys);
+
+  const needsPrompt = configMeta.some(c =>
+    !c.prompt_assigned && !stored[`prompt:${c.name}:${c.version}`]
+  );
+
+  if (needsPrompt) {
+    show('prompt-notice');
+    $('prompt-notice-btn').addEventListener('click', () => {
+      chrome.runtime.openOptionsPage();
+      window.close();
+    });
+  }
+}
+
 // ── Fetch + render ────────────────────────────────────────────────────────────
 
 async function fetchAndRender() {
@@ -121,7 +160,7 @@ async function fetchAndRender() {
   try {
     resp = await chrome.runtime.sendMessage({ type: 'GET_NONCES' });
   } catch {
-    return; // service worker restart — will succeed on next tick
+    return;
   }
 
   if (resp.error === 'AUTH_EXPIRED') {
@@ -132,7 +171,7 @@ async function fetchAndRender() {
   }
   if (resp.error || !resp.nonces) return;
 
-  // Update known configs from nonce data (deduplicated, sorted).
+  // Update known configs from nonce data (fallback for config selector).
   const seen = [...new Set(
     resp.nonces.map(n => n.configuration_name).filter(Boolean)
   )].sort();
@@ -140,7 +179,6 @@ async function fetchAndRender() {
     knownConfigs = seen;
   }
 
-  // Filter nonces by active config (or show all).
   let nonces = resp.nonces;
   if (activeConfigName !== null) {
     nonces = nonces.filter(n => n.configuration_name === activeConfigName);
@@ -180,7 +218,6 @@ async function fetchAndRender() {
 // ── Fill action ───────────────────────────────────────────────────────────────
 
 async function onNonceClick(nonce) {
-  // Look up the matching provider by tag to get its CSS selector.
   const { providers = [] } = await chrome.storage.sync.get('providers');
   const provider = providers.find(p => p.tag === nonce.provider_tag);
 
