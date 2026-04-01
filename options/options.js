@@ -242,24 +242,36 @@ async function saveProviders() {
 // ── Field picker ──────────────────────────────────────────────────────────────
 
 async function startPicker(providerIndex) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-
-  // Exclude non-injectable pages (chrome://, extension pages, etc.)
-  if (!tab.url?.startsWith('http')) {
-    alert('Navigate to the login page first, then click Pick.');
-    return;
-  }
+  const tab = await findPickerTab();
+  if (!tab) return;
 
   pendingPickerCardId = providerIndex;
-
-  // Clear any stale result from a previous picker session.
   await chrome.storage.session.remove('pickerResult');
 
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files:  ['../picker.js'],
   });
+}
+
+// ── Shared picker tab resolution ──────────────────────────────────────────────
+// The options page is itself a tab, so querying "active tab" always returns
+// the options page (chrome-extension:// URL). Instead, find the most recently
+// accessed HTTP tab in the current window that isn't us.
+async function findPickerTab() {
+  const allTabs = await chrome.tabs.query({ currentWindow: true });
+  const httpTabs = allTabs.filter(
+    t => t.url?.startsWith('http') && !t.url.startsWith('chrome-extension://')
+  );
+
+  if (httpTabs.length === 0) {
+    alert('Open the OTP login page in this window first, then click Pick.');
+    return null;
+  }
+
+  // Prefer the most recently accessed tab (highest lastAccessed value).
+  httpTabs.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+  return httpTabs[0];
 }
 
 // ── Configurations section ────────────────────────────────────────────────────
@@ -363,13 +375,8 @@ function buildConfigCard(cfg) {
 }
 
 async function startConfigPicker(configId) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-
-  if (!tab.url?.startsWith('http')) {
-    alert('Navigate to the OTP login page first, then click Pick.');
-    return;
-  }
+  const tab = await findPickerTab();
+  if (!tab) return;
 
   pendingPickerConfigId = configId;
   await chrome.storage.session.remove('pickerResult');
