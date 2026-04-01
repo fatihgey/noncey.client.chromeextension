@@ -250,7 +250,7 @@ async function startPicker(providerIndex) {
 
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files:  ['../picker.js'],
+    files:  ['picker.js'],
   });
 }
 
@@ -383,7 +383,7 @@ async function startConfigPicker(configId) {
 
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files:  ['../picker.js'],
+    files:  ['picker.js'],
   });
 }
 
