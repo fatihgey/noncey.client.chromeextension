@@ -31,10 +31,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { selector, url } = changes.pickerResult.newValue;
 
     if (pendingPickerConfigId !== null) {
-      // Config card picker: push prompt to daemon, then refresh config list.
+      // Config card picker: strip query string → default to 'prefix' match.
       const configId = pendingPickerConfigId;
       pendingPickerConfigId = null;
-      pushConfigPrompt(configId, url, selector);
+      const baseUrl = url ? url.split('?')[0] : url;
+      pushConfigPrompt(configId, baseUrl, selector, 'prefix');
     } else if (pendingPickerCardId !== null) {
       // Provider card picker: fill selector input locally.
       const card = document.querySelector(
@@ -329,7 +330,8 @@ async function renderConfigs() {
 
 function buildConfigCard(cfg) {
   const hasPrompt = !!cfg.prompt;
-  const versionLabel = cfg.version === '-1' ? 'private' : cfg.version;
+  const versionLabel = cfg.version === '-1' ? '' : cfg.version;
+  const p = cfg.prompt || {};
 
   const card = document.createElement('div');
   card.className = 'config-card';
@@ -339,36 +341,84 @@ function buildConfigCard(cfg) {
     ? '<span class="badge badge-ok">prompt ✓</span>'
     : '<span class="badge badge-warn">no prompt</span>';
 
-  const promptInfoHtml = hasPrompt
-    ? `<div class="prompt-info">
-         <span class="prompt-url" title="${escHtml(cfg.prompt.url)}">${escHtml(cfg.prompt.url)}</span>
-         <code class="prompt-selector">${escHtml(cfg.prompt.selector)}</code>
-       </div>`
-    : '<p class="hint">No prompt set. Navigate to the OTP input page, then click Pick.</p>';
-
-  const pickBtnHtml = cfg.is_owned
-    ? '<button class="btn-small pick-config-btn">Pick</button>'
+  const versionBadge = versionLabel
+    ? `<span class="config-version">${escHtml(versionLabel)}</span>`
     : '';
+
+  // URL match mode radios — shown for owned configs whether or not prompt exists
+  const currentMatch = p.url_match || 'prefix';
+  const matchRadios = ['exact', 'prefix', 'regex'].map(m => `
+    <label style="margin-right:.75rem;font-weight:normal;cursor:pointer;">
+      <input type="radio" name="url_match_${cfg.id}" value="${m}"${m === currentMatch ? ' checked' : ''}>
+      ${m === 'exact' ? 'Exact' : m === 'prefix' ? 'Begins with' : 'Regex'}
+    </label>`).join('');
+
+  const promptSectionHtml = cfg.is_owned ? `
+    <div class="prompt-section">
+      <div class="field" style="margin-bottom:.4rem;">
+        <label>URL</label>
+        <input type="text" class="prompt-url-input"
+               value="${escHtml(p.url || '')}"
+               placeholder="Navigate to the OTP page and click Pick"
+               spellcheck="false" autocomplete="off">
+        <div style="margin-top:.35rem;">${matchRadios}</div>
+      </div>
+      <div class="field" style="margin-bottom:.6rem;">
+        <label>OTP field selector</label>
+        <input type="text" class="prompt-selector-display" readonly
+               value="${escHtml(p.selector || '')}"
+               placeholder="(use Pick to capture)">
+      </div>
+      <div class="config-actions">
+        <button class="btn-small pick-config-btn">Pick</button>
+        <button class="btn-primary btn-small save-prompt-btn"${hasPrompt ? '' : ' disabled'}>Save URL</button>
+        <span class="pick-status"></span>
+      </div>
+    </div>
+  ` : hasPrompt ? `
+    <div class="prompt-section">
+      <div class="field" style="margin-bottom:.4rem;">
+        <label>URL</label>
+        <span class="badge" style="background:#6c757d;color:#fff;margin-right:.4rem;">
+          ${escHtml(currentMatch)}
+        </span>
+        <span style="font-size:.85rem;word-break:break-all;">${escHtml(p.url || '')}</span>
+      </div>
+      <div class="field">
+        <label>OTP field selector</label>
+        <input type="text" readonly value="${escHtml(p.selector || '')}" style="width:100%;">
+      </div>
+    </div>
+  ` : '<p class="hint">No prompt set (set by the configuration owner).</p>';
 
   card.innerHTML = `
     <div class="config-header">
       <span class="config-name-label">${escHtml(cfg.name)}</span>
-      <span class="config-version">${escHtml(versionLabel)}</span>
+      ${versionBadge}
       ${badgeHtml}
     </div>
-    <div class="prompt-section">
-      ${promptInfoHtml}
-      <div class="config-actions">
-        ${pickBtnHtml}
-        <span class="pick-status"></span>
-      </div>
-    </div>
+    ${promptSectionHtml}
   `;
 
   if (cfg.is_owned) {
-    card.querySelector('.pick-config-btn').addEventListener('click', () =>
-      startConfigPicker(cfg.id)
-    );
+    const pickBtn  = card.querySelector('.pick-config-btn');
+    const saveBtn  = card.querySelector('.save-prompt-btn');
+    const urlInput = card.querySelector('.prompt-url-input');
+
+    pickBtn.addEventListener('click', () => startConfigPicker(cfg.id));
+
+    // Enable Save button as soon as URL is non-empty
+    urlInput.addEventListener('input', () => {
+      saveBtn.disabled = !urlInput.value.trim();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const url      = urlInput.value.trim();
+      const selector = card.querySelector('.prompt-selector-display').value.trim();
+      const urlMatch = card.querySelector(`input[name="url_match_${cfg.id}"]:checked`)?.value || 'prefix';
+      if (!url || !selector) return;
+      await pushConfigPrompt(cfg.id, url, selector, urlMatch);
+    });
   }
 
   return card;
@@ -387,7 +437,7 @@ async function startConfigPicker(configId) {
   });
 }
 
-async function pushConfigPrompt(configId, url, selector) {
+async function pushConfigPrompt(configId, url, selector, urlMatch = 'prefix') {
   const card = document.querySelector(`.config-card[data-config-id="${configId}"]`);
   if (card) {
     const statusEl = card.querySelector('.pick-status');
@@ -395,7 +445,7 @@ async function pushConfigPrompt(configId, url, selector) {
   }
 
   const r = await chrome.runtime.sendMessage({
-    type: 'PUSH_PROMPT', id: configId, url, selector,
+    type: 'PUSH_PROMPT', id: configId, url, url_match: urlMatch, selector,
   });
 
   if (r.error) {

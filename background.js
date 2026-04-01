@@ -130,7 +130,7 @@ async function handleMessage(msg, sender) {
 
     case 'PUSH_PROMPT': {
       await apiFetch('POST', `/api/configs/${msg.id}/prompt`, {
-        url: msg.url, selector: msg.selector,
+        url: msg.url, url_match: msg.url_match, selector: msg.selector,
       });
       return { ok: true };
     }
