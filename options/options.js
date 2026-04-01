@@ -7,8 +7,9 @@ function show(id)      { $(id).classList.remove('hidden'); }
 function hide(id)      { $(id).classList.add('hidden'); }
 function setHtml(id,h) { $(id).innerHTML = h; }
 
-// Track which provider card is awaiting a picker result.
-let pendingPickerCardId = null;
+// Track which provider card (local) or config card (daemon) awaits a picker result.
+let pendingPickerCardId   = null;
+let pendingPickerConfigId = null;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -27,8 +28,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for picker results written by background.js into session storage.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'session' || !changes.pickerResult) return;
-    const { selector } = changes.pickerResult.newValue;
-    if (pendingPickerCardId !== null) {
+    const { selector, url } = changes.pickerResult.newValue;
+
+    if (pendingPickerConfigId !== null) {
+      // Config card picker: push prompt to daemon, then refresh config list.
+      const configId = pendingPickerConfigId;
+      pendingPickerConfigId = null;
+      pushConfigPrompt(configId, url, selector);
+    } else if (pendingPickerCardId !== null) {
+      // Provider card picker: fill selector input locally.
       const card = document.querySelector(
         `.provider-card[data-id="${pendingPickerCardId}"]`
       );
@@ -274,7 +282,7 @@ async function renderConfigs() {
   if (resp.error === 'AUTH_EXPIRED') {
     list.innerHTML = '<p class="muted">Session expired — please log in again.</p>';
     hide('refresh-configs-btn');
-    await renderAccount(); // re-sync account section so it no longer shows "Logged in"
+    await renderAccount();
     return;
   }
   if (resp.error) {
@@ -289,93 +297,108 @@ async function renderConfigs() {
     return;
   }
 
-  // Batch-read all prompt keys at once.
-  const keys = resp.configs.map(c => `prompt:${c.name}:${c.version}`);
-  const storedPrompts = await chrome.storage.sync.get(keys);
-
-  // Detect configs that need a prompt (no local prompt and not yet flagged on server).
-  const needingPrompt = resp.configs.filter(c => {
-    const key = `prompt:${c.name}:${c.version}`;
-    return !c.prompt_assigned && !storedPrompts[key];
-  });
-
+  const needingPrompt = resp.configs.filter(c => !c.prompt);
   if (needingPrompt.length > 0) {
     const banner = document.createElement('div');
     banner.className = 'prompt-banner';
     const n = needingPrompt.length;
     banner.textContent =
-      `${n} configuration${n > 1 ? 's' : ''} ${n > 1 ? 'need' : 'needs'} a prompt — ` +
-      `fill in the field${n > 1 ? 's' : ''} below to enable auto-fill.`;
+      `${n} configuration${n > 1 ? 's need' : ' needs'} a prompt — ` +
+      `navigate to the OTP page and click Pick to enable auto-fill.`;
     list.appendChild(banner);
   }
 
   for (const cfg of resp.configs) {
-    const key    = `prompt:${cfg.name}:${cfg.version}`;
-    const prompt = storedPrompts[key] || '';
-    const card   = buildConfigCard(cfg, prompt);
-    if (!cfg.prompt_assigned && !prompt) card.classList.add('config-card-needs-prompt');
+    const card = buildConfigCard(cfg);
+    if (!cfg.prompt) card.classList.add('config-card-needs-prompt');
     list.appendChild(card);
   }
 }
 
-function buildConfigCard(cfg, prompt) {
-  // Badge: server says prompt_assigned, or we have a local prompt stored.
-  const hasPrompt = cfg.prompt_assigned || prompt.length > 0;
+function buildConfigCard(cfg) {
+  const hasPrompt = !!cfg.prompt;
+  const versionLabel = cfg.version === '-1' ? 'private' : cfg.version;
 
-  const key  = `prompt:${cfg.name}:${cfg.version}`;
   const card = document.createElement('div');
   card.className = 'config-card';
+  card.dataset.configId = cfg.id;
 
   const badgeHtml = hasPrompt
     ? '<span class="badge badge-ok">prompt ✓</span>'
     : '<span class="badge badge-warn">no prompt</span>';
 
+  const promptInfoHtml = hasPrompt
+    ? `<div class="prompt-info">
+         <span class="prompt-url" title="${escHtml(cfg.prompt.url)}">${escHtml(cfg.prompt.url)}</span>
+         <code class="prompt-selector">${escHtml(cfg.prompt.selector)}</code>
+       </div>`
+    : '<p class="hint">No prompt set. Navigate to the OTP input page, then click Pick.</p>';
+
+  const pickBtnHtml = cfg.is_owned
+    ? '<button class="btn-small pick-config-btn">Pick</button>'
+    : '';
+
   card.innerHTML = `
     <div class="config-header">
       <span class="config-name-label">${escHtml(cfg.name)}</span>
-      <span class="config-version">${escHtml(cfg.version)}</span>
+      <span class="config-version">${escHtml(versionLabel)}</span>
       ${badgeHtml}
     </div>
-    <div class="field">
-      <label>Prompt</label>
-      <textarea class="prompt-input" rows="3"
-        placeholder="CSS selector or fill instructions (leave blank for manual fill)"
-        spellcheck="false">${escHtml(prompt)}</textarea>
-      <p class="hint">
-        Stored locally. A prompt tells the extension how to fill the OTP field for
-        this configuration (e.g. <code>#otp-field</code>).
-      </p>
-    </div>
-    <div class="config-actions">
-      <button class="btn-primary btn-small save-prompt-btn">Save prompt</button>
-      <span class="save-prompt-status"></span>
+    <div class="prompt-section">
+      ${promptInfoHtml}
+      <div class="config-actions">
+        ${pickBtnHtml}
+        <span class="pick-status"></span>
+      </div>
     </div>
   `;
 
-  card.querySelector('.save-prompt-btn').addEventListener('click', async () => {
-    const val      = card.querySelector('.prompt-input').value.trim();
-    const statusEl = card.querySelector('.save-prompt-status');
-    const badgeEl  = card.querySelector('.badge');
-
-    await chrome.storage.sync.set({ [key]: val });
-
-    // Notify daemon if a non-empty prompt was just stored and flag not yet set.
-    if (val && !cfg.prompt_assigned) {
-      const r = await chrome.runtime.sendMessage({ type: 'SET_PROMPT_ASSIGNED', id: cfg.id });
-      if (!r.error) cfg.prompt_assigned = true;
-    }
-
-    // Update badge and card highlight in place.
-    const nowHasPrompt = cfg.prompt_assigned || val.length > 0;
-    badgeEl.className   = 'badge ' + (nowHasPrompt ? 'badge-ok' : 'badge-warn');
-    badgeEl.textContent = nowHasPrompt ? 'prompt ✓' : 'no prompt';
-    if (nowHasPrompt) card.classList.remove('config-card-needs-prompt');
-
-    statusEl.textContent = '✓ Saved';
-    setTimeout(() => { statusEl.textContent = ''; }, 2000);
-  });
+  if (cfg.is_owned) {
+    card.querySelector('.pick-config-btn').addEventListener('click', () =>
+      startConfigPicker(cfg.id)
+    );
+  }
 
   return card;
+}
+
+async function startConfigPicker(configId) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+
+  if (!tab.url?.startsWith('http')) {
+    alert('Navigate to the OTP login page first, then click Pick.');
+    return;
+  }
+
+  pendingPickerConfigId = configId;
+  await chrome.storage.session.remove('pickerResult');
+
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files:  ['../picker.js'],
+  });
+}
+
+async function pushConfigPrompt(configId, url, selector) {
+  const card = document.querySelector(`.config-card[data-config-id="${configId}"]`);
+  if (card) {
+    const statusEl = card.querySelector('.pick-status');
+    if (statusEl) statusEl.textContent = 'Saving…';
+  }
+
+  const r = await chrome.runtime.sendMessage({
+    type: 'PUSH_PROMPT', id: configId, url, selector,
+  });
+
+  if (r.error) {
+    if (card) {
+      const statusEl = card.querySelector('.pick-status');
+      if (statusEl) statusEl.textContent = `Error: ${r.error}`;
+    }
+  } else {
+    await renderConfigs();
+  }
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

@@ -128,14 +128,21 @@ async function handleMessage(msg, sender) {
       return { configs: data };
     }
 
-    case 'SET_PROMPT_ASSIGNED': {
-      await apiFetch('POST', `/api/configs/${msg.id}/prompt-assigned`);
+    case 'PUSH_PROMPT': {
+      await apiFetch('POST', `/api/configs/${msg.id}/prompt`, {
+        url: msg.url, selector: msg.selector,
+      });
+      return { ok: true };
+    }
+
+    case 'REPORT_TEST': {
+      await apiFetch('POST', `/api/configs/${msg.id}/client-test`);
       return { ok: true };
     }
 
     case 'PICKER_RESULT': {
       await chrome.storage.session.set({
-        pickerResult: { selector: msg.selector, ts: Date.now() },
+        pickerResult: { selector: msg.selector, url: msg.url, ts: Date.now() },
       });
       return { ok: true };
     }

@@ -22,7 +22,7 @@ function truncate(str, max = 14) {
 let pollTimer      = null;
 let activeConfigName = null;  // null = show all; string = filter to that config
 let knownConfigs   = [];      // unique config names seen in last nonce response
-let configMeta     = [];      // [{id, name, version, prompt_assigned}] from GET /api/configs
+let configMeta     = [];      // [{id, name, version, prompt, is_owned, ...}] from GET /api/configs
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -137,12 +137,7 @@ async function selectConfig(name) {
 async function checkPromptNotice() {
   if (configMeta.length === 0) return;
 
-  const keys = configMeta.map(c => `prompt:${c.name}:${c.version}`);
-  const stored = await chrome.storage.sync.get(keys);
-
-  const needsPrompt = configMeta.some(c =>
-    !c.prompt_assigned && !stored[`prompt:${c.name}:${c.version}`]
-  );
+  const needsPrompt = configMeta.some(c => !c.prompt);
 
   if (needsPrompt) {
     show('prompt-notice');
@@ -218,13 +213,17 @@ async function fetchAndRender() {
 // ── Fill action ───────────────────────────────────────────────────────────────
 
 async function onNonceClick(nonce) {
-  const { providers = [] } = await chrome.storage.sync.get('providers');
-  const provider = providers.find(p => p.tag === nonce.provider_tag);
+  // Look up the prompt (selector) from server config metadata, keyed by configuration_name.
+  const meta = configMeta.find(c => c.name === nonce.configuration_name);
+  const selector = meta?.prompt?.selector ?? null;
 
-  if (!provider?.selector) {
+  if (!selector) {
     await navigator.clipboard.writeText(nonce.nonce_value).catch(() => {});
     return;
   }
+
+  // Re-use provider variable name for the fill message shape.
+  const provider = { selector };
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {

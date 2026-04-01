@@ -88,7 +88,7 @@
     document.removeEventListener('keydown',   onKeydown,   true);
     window.__nonceyPickerActive = false;
     if (selector !== null) {
-      chrome.runtime.sendMessage({ type: 'PICKER_RESULT', selector });
+      chrome.runtime.sendMessage({ type: 'PICKER_RESULT', selector, url: window.location.href });
     }
   }
 
