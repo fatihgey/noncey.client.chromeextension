@@ -24,6 +24,17 @@ let activeConfigName = null;  // null = show all; string = filter to that config
 let knownConfigs   = [];      // unique config names seen in last nonce response
 let configMeta     = [];      // [{id, name, version, prompt, is_owned, ...}] from GET /api/configs
 
+// ── URL matching ──────────────────────────────────────────────────────────────
+
+function urlMatchesPrompt(url, prompt) {
+  if (!prompt?.url) return false;
+  switch (prompt.url_match) {
+    case 'exact': return url === prompt.url;
+    case 'regex': try { return new RegExp(prompt.url).test(url); } catch { return false; }
+    default:      return url.startsWith(prompt.url);  // 'prefix' / fallback
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 (async function boot() {
@@ -49,14 +60,9 @@ let configMeta     = [];      // [{id, name, version, prompt, is_owned, ...}] fr
   const [tab]     = await chrome.tabs.query({ active: true, currentWindow: true });
   const url       = tab?.url || '';
   const providers = storage.providers || [];
-  const matched   = providers.find(p => p.url_pattern && url.includes(p.url_pattern));
 
-  if (!matched) {
-    show('view-no-match');
-    return;
-  }
-
-  // Load active config selection and server config metadata in parallel.
+  // Fetch configs before the URL gate so config prompt URLs can also activate
+  // the popup (not just local provider patterns).
   const [local, configsResp] = await Promise.all([
     chrome.storage.local.get('activeConfigName'),
     chrome.runtime.sendMessage({ type: 'GET_CONFIGS' }).catch(() => ({})),
@@ -65,6 +71,14 @@ let configMeta     = [];      // [{id, name, version, prompt, is_owned, ...}] fr
   activeConfigName = local.activeConfigName ?? null;
   if (!configsResp.error && configsResp.configs) {
     configMeta = configsResp.configs;
+  }
+
+  const providerMatched = providers.find(p => p.url_pattern && url.includes(p.url_pattern));
+  const configMatched   = configMeta.some(c => c.prompt && urlMatchesPrompt(url, c.prompt));
+
+  if (!providerMatched && !configMatched) {
+    show('view-no-match');
+    return;
   }
 
   show('view-nonces');
