@@ -19,10 +19,11 @@ function truncate(str, max = 14) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let pollTimer      = null;
+let pollTimer        = null;
 let activeConfigName = null;  // null = show all; string = filter to that config
-let knownConfigs   = [];      // unique config names seen in last nonce response
-let configMeta     = [];      // [{id, name, version, prompt, is_owned, ...}] from GET /api/configs
+let knownConfigs     = [];    // unique config names seen in last nonce response
+let configMeta       = [];    // [{id, name, version, prompt, is_owned, ...}] from GET /api/configs
+let autoFillSeen     = new Set(); // nonce IDs already attempted by auto-fill this session
 
 // ── URL matching ──────────────────────────────────────────────────────────────
 
@@ -228,6 +229,15 @@ async function fetchAndRender() {
     li.addEventListener('click', () => onNonceClick(nonce));
     list.appendChild(li);
   }
+
+  // Auto-fill: if the pill is on, fire on the first nonce not yet attempted.
+  if ($('autofill-toggle').classList.contains('on')) {
+    const candidate = nonces.find(n => !autoFillSeen.has(n.id));
+    if (candidate) {
+      autoFillSeen.add(candidate.id);
+      onNonceClick(candidate);
+    }
+  }
 }
 
 // ── Fill action ───────────────────────────────────────────────────────────────
@@ -254,6 +264,9 @@ async function onNonceClick(nonce) {
     });
     if (resp?.ok) {
       chrome.runtime.sendMessage({ type: 'DELETE_NONCE', id: nonce.id }).catch(() => {});
+      if (meta?.id != null) {
+        chrome.runtime.sendMessage({ type: 'REPORT_TEST', id: meta.id }).catch(() => {});
+      }
       window.close();
     } else if (resp?.error) {
       console.warn('noncey fill error:', resp.error);
