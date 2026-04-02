@@ -330,7 +330,7 @@ async function openNewConfig() {
   const { server, consolePath } = await chrome.storage.sync.get(['server', 'consolePath']);
   if (!server) { alert('Set a server URL in Server Settings first.'); return; }
   const path = (consolePath || 'auth').replace(/^\/|\/$/g, '');
-  chrome.tabs.create({ url: `${server}/${path}/configs/new` });
+  chrome.tabs.create({ url: `${server}/${path}/wizard/new` });
 }
 
 async function openMarketplace() {
