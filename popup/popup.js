@@ -39,7 +39,7 @@ function urlMatchesPrompt(url, prompt) {
 
 (async function boot() {
   const storage = await chrome.storage.sync.get([
-    'token', 'username', 'providers', 'autoFill',
+    'token', 'username', 'providers', 'autoFill', 'server',
   ]);
 
   if (!storage.token) {
@@ -48,6 +48,12 @@ function urlMatchesPrompt(url, prompt) {
   }
 
   $('user-label').textContent = storage.username || 'noncey';
+
+  if (storage.server) {
+    const link = $('account-settings-link');
+    link.href = storage.server.replace(/\/$/, '') + '/auth/';
+    show('account-footer');
+  }
 
   const toggleBtn = $('autofill-toggle');
   toggleBtn.classList.toggle('on', storage.autoFill !== false);

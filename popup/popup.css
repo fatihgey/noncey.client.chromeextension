@@ -190,3 +190,16 @@ main p { margin: 6px 0; }
   font-size: 12px;
 }
 #go-options:hover { background: #00796b; }
+
+footer {
+  border-top: 1px solid #eee;
+  padding: 6px 12px;
+  text-align: center;
+}
+
+footer a {
+  font-size: 11px;
+  color: #00897b;
+  text-decoration: none;
+}
+footer a:hover { text-decoration: underline; }
