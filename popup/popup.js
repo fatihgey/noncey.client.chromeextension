@@ -40,7 +40,7 @@ function urlMatchesPrompt(url, prompt) {
 
 (async function boot() {
   const storage = await chrome.storage.sync.get([
-    'token', 'username', 'providers', 'autoFill', 'server',
+    'token', 'username', 'providers', 'autoFill', 'server', 'consolePath',
   ]);
 
   if (!storage.token) {
@@ -48,11 +48,10 @@ function urlMatchesPrompt(url, prompt) {
     return;
   }
 
-  $('user-label').textContent = storage.username || 'noncey';
-
   if (storage.server) {
+    const consolePath = (storage.consolePath || 'auth').replace(/^\/|\/$/g, '');
     const link = $('account-settings-link');
-    link.href = storage.server.replace(/\/$/, '') + '/auth/';
+    link.href = storage.server.replace(/\/$/, '') + '/' + consolePath + '/';
     show('account-footer');
   }
 

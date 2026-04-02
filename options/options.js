@@ -31,6 +31,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   $('logout-btn').addEventListener('click', doLogout);
 
+  $('console-path').addEventListener('blur', async () => {
+    const val = $('console-path').value.trim().replace(/^\/|\/$/g, '');
+    await chrome.storage.sync.set({ consolePath: val });
+  });
+
   $('sync-btn').addEventListener('click', renderConfigs);
   $('new-config-btn').addEventListener('click', openNewConfig);
   $('marketplace-btn').addEventListener('click', openMarketplace);
@@ -66,12 +71,13 @@ function showDetailView() {
 // ── Account section ───────────────────────────────────────────────────────────
 
 async function renderAccount() {
-  const { server, username, token } = await chrome.storage.sync.get([
-    'server', 'username', 'token',
+  const { server, username, token, consolePath } = await chrome.storage.sync.get([
+    'server', 'username', 'token', 'consolePath',
   ]);
 
   if (server) $('server').value = server;
   if (username) $('username').value = username;
+  $('console-path').value = consolePath || '';
 
   if (token) {
     setHtml('auth-status', `<span class="status-ok">&#10003; Logged in as ${username || '?'}</span>`);
@@ -321,15 +327,17 @@ function buildPromptSection(cfg) {
 // ── Config action buttons ─────────────────────────────────────────────────────
 
 async function openNewConfig() {
-  const { server } = await chrome.storage.sync.get('server');
+  const { server, consolePath } = await chrome.storage.sync.get(['server', 'consolePath']);
   if (!server) { alert('Set a server URL in Server Settings first.'); return; }
-  chrome.tabs.create({ url: `${server}/configs/new` });
+  const path = (consolePath || 'auth').replace(/^\/|\/$/g, '');
+  chrome.tabs.create({ url: `${server}/${path}/configs/new` });
 }
 
 async function openMarketplace() {
-  const { server } = await chrome.storage.sync.get('server');
+  const { server, consolePath } = await chrome.storage.sync.get(['server', 'consolePath']);
   if (!server) { alert('Set a server URL in Server Settings first.'); return; }
-  chrome.tabs.create({ url: `${server}/marketplace` });
+  const path = (consolePath || 'auth').replace(/^\/|\/$/g, '');
+  chrome.tabs.create({ url: `${server}/${path}/marketplace` });
 }
 
 // ── Field picker ──────────────────────────────────────────────────────────────
