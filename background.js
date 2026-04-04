@@ -81,7 +81,7 @@ async function handleMessage(msg, sender) {
       const res = await fetch(`${server}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, client_type: 'chrome' }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
