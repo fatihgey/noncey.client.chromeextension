@@ -24,6 +24,7 @@ let activeConfigName = null;  // null = show all; string = filter to that config
 let knownConfigs     = [];    // unique config names seen in last nonce response
 let configMeta       = [];    // [{id, name, version, prompt, is_owned, ...}] from GET /api/configs
 let autoFillSeen     = new Set(); // nonce IDs already attempted by auto-fill this session
+let lastNonceIds     = new Set(); // IDs from most recent successful fetch (for manual refresh diff)
 
 // ── URL matching ──────────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ function urlMatchesPrompt(url, prompt) {
   renderConfigBar();
 
   $('config-change-btn').addEventListener('click', toggleConfigSelector);
+  $('refresh-btn').addEventListener('click', () => fetchAndRender(true));
 
   // Prompt notice — shown once at boot if any config has no local prompt stored.
   await checkPromptNotice();
@@ -170,7 +172,7 @@ async function checkPromptNotice() {
 
 // ── Fetch + render ────────────────────────────────────────────────────────────
 
-async function fetchAndRender() {
+async function fetchAndRender(manual = false) {
   let resp;
   try {
     resp = await chrome.runtime.sendMessage({ type: 'GET_NONCES' });
@@ -185,6 +187,15 @@ async function fetchAndRender() {
     return;
   }
   if (resp.error || !resp.nonces) return;
+
+  if (manual) {
+    const currentIds = new Set(resp.nonces.map(n => n.id));
+    const newCount   = [...currentIds].filter(id => !lastNonceIds.has(id)).length;
+    console.log(`[noncey] manual refresh: ${newCount} new nonce(s) picked up (total: ${resp.nonces.length})`);
+    lastNonceIds = currentIds;
+  } else {
+    lastNonceIds = new Set(resp.nonces.map(n => n.id));
+  }
 
   // Update known configs from nonce data (fallback for config selector).
   const seen = [...new Set(
