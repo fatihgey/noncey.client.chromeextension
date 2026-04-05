@@ -11,16 +11,24 @@ body {
 header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 8px 12px;
-  background: #00897b;
+  background: #1a1a2e;
   color: #fff;
 }
 
 #user-label {
-  font-weight: 600;
+  flex: 1;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
   font-size: 13px;
   letter-spacing: .02em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .toggle-pill {
@@ -36,11 +44,24 @@ header {
 }
 .toggle-pill.on {
   background: rgba(255,255,255,0.9);
-  color: #00897b;
+  color: #1a1a2e;
   font-weight: 600;
   border-color: transparent;
 }
 .toggle-pill:hover { opacity: .85; }
+
+#refresh-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.6);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: color .15s;
+}
+#refresh-btn:hover { color: #fff; }
 
 #open-options {
   background: none;
@@ -199,7 +220,7 @@ footer {
 
 footer a {
   font-size: 11px;
-  color: #00897b;
+  color: #1a1a2e;
   text-decoration: none;
 }
 footer a:hover { text-decoration: underline; }
