@@ -49,8 +49,8 @@ for %%F in (manifest.json background.js content.js picker.js) do (
     )
 )
 
-:: Copy popup\ and options\ subdirectories.
-for %%D in (popup options) do (
+:: Copy popup\, options\, and icons\ subdirectories.
+for %%D in (popup options icons) do (
     if exist "%%D\" (
         robocopy "%%D" "%DEST%\%%D" /E /NFL /NDL /NJH /NJS >nul
         echo  Copied   %%D\
