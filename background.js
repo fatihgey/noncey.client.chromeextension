@@ -37,10 +37,11 @@ function setIcon(active) {
   }).catch(e => console.warn('[noncey] setIcon skipped:', e.message));
 }
 
-// Set idle icon on startup and mark SW ready immediately.
-// Icon delivery is best-effort; the message listener below is what matters.
+// No setIcon call at startup: the manifest default_icon handles the initial
+// visual state. Calling chrome.action.setIcon() here creates a pending Promise
+// that is abandoned when the user reloads the extension, which Chrome counts
+// as an abnormal SW termination and throttles after 3-4 occurrences.
 console.log('[noncey] service worker starting');
-setIcon(false);
 console.log('[noncey] service worker ready');
 
 // ── API ───────────────────────────────────────────────────────────────────────
