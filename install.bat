@@ -74,10 +74,10 @@ if "%FORMAL_VERSION:~0,1%"=="v" set "FORMAL_VERSION=%FORMAL_VERSION:~1%"
 
 set "DISPLAY_VERSION=%FORMAL_VERSION%+%GIT_HASH%"
 
-powershell -Command "(Get-Content '%DEST%\manifest.json' -Raw) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%FORMAL_VERSION%\"' | Set-Content '%DEST%\manifest.json' -Encoding UTF8 -NoNewline"
+powershell -Command "$q=[char]34; $v='%FORMAL_VERSION%'; $f='%DEST%\manifest.json'; (gc $f -Raw) -replace ($q+'version'+$q+': '+$q+'[^'+$q+']+'+$q),($q+'version'+$q+': '+$q+$v+$q) | sc $f -Encoding UTF8 -NoNewline"
 echo  Version  %DISPLAY_VERSION%
 
-powershell -Command "Set-Content -Path '%DEST%\options\_version.js' -Value \"window.NONCEY_DISPLAY_VERSION = '%DISPLAY_VERSION%';\" -Encoding UTF8"
+>"%DEST%\options\_version.js" echo window.NONCEY_DISPLAY_VERSION = '%DISPLAY_VERSION%';
 echo  Wrote    options\_version.js
 
 echo.
