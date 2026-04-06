@@ -77,8 +77,8 @@ set "DISPLAY_VERSION=%FORMAL_VERSION%+%GIT_HASH%"
 powershell -Command "(Get-Content '%DEST%\manifest.json' -Raw) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%FORMAL_VERSION%\"' | Set-Content '%DEST%\manifest.json' -Encoding UTF8 -NoNewline"
 echo  Version  %DISPLAY_VERSION%
 
-powershell -Command "Set-Content -Path '%DEST%\_version.js' -Value \"window.NONCEY_DISPLAY_VERSION = '%DISPLAY_VERSION%';\" -Encoding UTF8"
-echo  Wrote    _version.js
+powershell -Command "Set-Content -Path '%DEST%\options\_version.js' -Value \"window.NONCEY_DISPLAY_VERSION = '%DISPLAY_VERSION%';\" -Encoding UTF8"
+echo  Wrote    options\_version.js
 
 echo.
 if "%ERRORS%"=="1" (
