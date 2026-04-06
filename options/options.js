@@ -63,6 +63,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('marketplace-btn').addEventListener('click', openMarketplace);
   $('back-btn').addEventListener('click', showListView);
 
+  const vLabel = $('ext-version-label');
+  if (vLabel) {
+    // eslint-disable-next-line no-undef
+    const v = (typeof NONCEY_DISPLAY_VERSION !== 'undefined')
+      ? NONCEY_DISPLAY_VERSION
+      : chrome.runtime.getManifest().version;
+    vLabel.textContent = `Chrome Extension: v${v}`;
+  }
+
   // Listen for picker results written by background.js into session storage.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'session' || !changes.pickerResult) return;
