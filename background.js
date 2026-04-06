@@ -147,6 +147,9 @@ async function handleMessage(msg, sender) {
       return { ok: true };
     }
 
+    case 'PING':
+      return { pong: true };
+
     default:
       throw new Error(`Unknown message type: ${msg.type}`);
   }

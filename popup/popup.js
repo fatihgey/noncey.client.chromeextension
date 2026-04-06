@@ -2,6 +2,24 @@
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Sends a message to the background service worker with timeout + retry.
+// Handles both idle-termination (SW restarted by Chrome) and post-hot-reload
+// delays where the SW is mid-startup and not yet listening.
+// Returns { error: 'sw_unavailable' } if all attempts fail — never throws.
+async function sendMsg(msg, { attempts = 3, timeoutMs = 2500 } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await Promise.race([
+        chrome.runtime.sendMessage(msg),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('sw_timeout')), timeoutMs)),
+      ]);
+    } catch {
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  return { error: 'sw_unavailable' };
+}
+
 function show(id)   { document.getElementById(id).classList.remove('hidden'); }
 function hide(id)   { document.getElementById(id).classList.add('hidden'); }
 function $(id)      { return document.getElementById(id); }
@@ -72,7 +90,7 @@ function urlMatchesPrompt(url, prompt) {
   // the popup (not just local provider patterns).
   const [local, configsResp] = await Promise.all([
     chrome.storage.local.get('activeConfigName'),
-    chrome.runtime.sendMessage({ type: 'GET_CONFIGS' }).catch(() => ({})),
+    sendMsg({ type: 'GET_CONFIGS' }),
   ]);
 
   activeConfigName = local.activeConfigName ?? null;
@@ -173,12 +191,7 @@ async function checkPromptNotice() {
 // ── Fetch + render ────────────────────────────────────────────────────────────
 
 async function fetchAndRender(manual = false) {
-  let resp;
-  try {
-    resp = await chrome.runtime.sendMessage({ type: 'GET_NONCES' });
-  } catch {
-    return;
-  }
+  const resp = await sendMsg({ type: 'GET_NONCES' });
 
   if (resp.error === 'AUTH_EXPIRED') {
     clearInterval(pollTimer);
@@ -273,9 +286,9 @@ async function onNonceClick(nonce) {
       selector: provider.selector,
     });
     if (resp?.ok) {
-      chrome.runtime.sendMessage({ type: 'DELETE_NONCE', id: nonce.id }).catch(() => {});
+      sendMsg({ type: 'DELETE_NONCE', id: nonce.id });
       if (meta?.id != null) {
-        chrome.runtime.sendMessage({ type: 'REPORT_TEST', id: meta.id }).catch(() => {});
+        sendMsg({ type: 'REPORT_TEST', id: meta.id });
       }
       window.close();
     } else if (resp?.error) {

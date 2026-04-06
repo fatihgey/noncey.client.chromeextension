@@ -2,6 +2,24 @@
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Sends a message to the background service worker with timeout + retry.
+// Handles both idle-termination (SW restarted by Chrome) and post-hot-reload
+// delays where the SW is mid-startup and not yet listening.
+// Returns { error: 'sw_unavailable' } if all attempts fail — never throws.
+async function sendMsg(msg, { attempts = 3, timeoutMs = 2500 } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await Promise.race([
+        chrome.runtime.sendMessage(msg),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('sw_timeout')), timeoutMs)),
+      ]);
+    } catch {
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  return { error: 'sw_unavailable' };
+}
+
 function $(id)         { return document.getElementById(id); }
 function show(id)      { $(id).classList.remove('hidden'); }
 function hide(id)      { $(id).classList.add('hidden'); }
@@ -104,7 +122,7 @@ async function doLogin() {
   $('login-btn').disabled = true;
   $('login-btn').textContent = 'Logging in\u2026';
 
-  const resp = await chrome.runtime.sendMessage({ type: 'LOGIN', server, username, password });
+  const resp = await sendMsg({ type: 'LOGIN', server, username, password });
 
   $('login-btn').disabled = false;
   $('login-btn').textContent = 'Log in';
@@ -124,7 +142,7 @@ function showLoginError(msg) {
 
 async function doLogout() {
   $('logout-btn').disabled = true;
-  await chrome.runtime.sendMessage({ type: 'LOGOUT' });
+  await sendMsg({ type: 'LOGOUT' });
   $('logout-btn').disabled = false;
   await renderAccount();
   await renderConfigs();
@@ -144,7 +162,7 @@ async function renderConfigs() {
 
   container.innerHTML = '<p class="muted">Loading\u2026</p>';
 
-  const resp = await chrome.runtime.sendMessage({ type: 'GET_CONFIGS' });
+  const resp = await sendMsg({ type: 'GET_CONFIGS' });
 
   if (resp.error === 'AUTH_EXPIRED') {
     container.innerHTML = '<p class="muted">Session expired \u2014 please log in again.</p>';
@@ -367,7 +385,7 @@ async function pushConfigPrompt(configId, url, selector, urlMatch = 'prefix') {
   const statusEl = $('detail-prompt-content')?.querySelector('.pick-status');
   if (statusEl) statusEl.textContent = 'Saving\u2026';
 
-  const r = await chrome.runtime.sendMessage({
+  const r = await sendMsg({
     type: 'PUSH_PROMPT', id: configId, url, url_match: urlMatch, selector,
   });
 
