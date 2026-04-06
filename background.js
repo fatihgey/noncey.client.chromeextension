@@ -36,7 +36,13 @@ function setIcon(active) {
 }
 
 // Set idle icon on startup
-setIcon(false);
+console.log('[noncey] service worker starting');
+try {
+  setIcon(false);
+  console.log('[noncey] service worker ready');
+} catch (e) {
+  console.error('[noncey] setIcon failed on startup:', e);
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 

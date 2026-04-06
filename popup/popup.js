@@ -9,14 +9,18 @@
 async function sendMsg(msg, { attempts = 3, timeoutMs = 2500 } = {}) {
   for (let i = 0; i < attempts; i++) {
     try {
-      return await Promise.race([
+      const result = await Promise.race([
         chrome.runtime.sendMessage(msg),
         new Promise((_, rej) => setTimeout(() => rej(new Error('sw_timeout')), timeoutMs)),
       ]);
-    } catch {
+      if (i > 0) console.log(`[noncey] sendMsg(${msg.type}): ok on attempt ${i + 1}`);
+      return result;
+    } catch (e) {
+      console.warn(`[noncey] sendMsg(${msg.type}): attempt ${i + 1} failed — ${e.message}`);
       if (i < attempts - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
     }
   }
+  console.error(`[noncey] sendMsg(${msg.type}): all ${attempts} attempts exhausted`);
   return { error: 'sw_unavailable' };
 }
 
