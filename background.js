@@ -25,24 +25,25 @@ function drawIcon(size, color) {
   return ctx.getImageData(0, 0, size, size);
 }
 
-function setIcon(active) {
+async function setIcon(active) {
   const color = active ? ICON_COLOR_ACTIVE : ICON_COLOR_IDLE;
-  chrome.action.setIcon({
-    imageData: {
-      16: drawIcon(16, color),
-      48: drawIcon(48, color),
-    },
-  });
+  try {
+    await chrome.action.setIcon({
+      imageData: {
+        16: drawIcon(16, color),
+        48: drawIcon(48, color),
+      },
+    });
+  } catch (e) {
+    // chrome.action may not be ready immediately after a hot-reload;
+    // log and continue — a crashed SW is worse than a missing icon update.
+    console.warn('[noncey] setIcon skipped:', e.message);
+  }
 }
 
-// Set idle icon on startup
+// Set idle icon on startup (fire-and-forget; errors are caught inside setIcon)
 console.log('[noncey] service worker starting');
-try {
-  setIcon(false);
-  console.log('[noncey] service worker ready');
-} catch (e) {
-  console.error('[noncey] setIcon failed on startup:', e);
-}
+setIcon(false).then(() => console.log('[noncey] service worker ready'));
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ async function handleMessage(msg, sender) {
     case 'LOGOUT': {
       try { await apiFetch('POST', '/api/auth/logout'); } catch {}
       await chrome.storage.sync.remove(['token', 'token_expires_at']);
-      setIcon(false);
+      await setIcon(false);
       return { ok: true };
     }
 
@@ -122,7 +123,7 @@ async function handleMessage(msg, sender) {
     }
 
     case 'SET_ICON': {
-      setIcon(msg.active);
+      await setIcon(msg.active);
       return { ok: true };
     }
 
