@@ -25,25 +25,23 @@ function drawIcon(size, color) {
   return ctx.getImageData(0, 0, size, size);
 }
 
-async function setIcon(active) {
+function setIcon(active) {
   const color = active ? ICON_COLOR_ACTIVE : ICON_COLOR_IDLE;
-  try {
-    await chrome.action.setIcon({
-      imageData: {
-        16: drawIcon(16, color),
-        48: drawIcon(48, color),
-      },
-    });
-  } catch (e) {
-    // chrome.action may not be ready immediately after a hot-reload;
-    // log and continue — a crashed SW is worse than a missing icon update.
-    console.warn('[noncey] setIcon skipped:', e.message);
-  }
+  // Fire-and-forget: do not await — chrome.action.setIcon can hang or reject
+  // during extension reload. Catch the async rejection to prevent SW crash.
+  chrome.action.setIcon({
+    imageData: {
+      16: drawIcon(16, color),
+      48: drawIcon(48, color),
+    },
+  }).catch(e => console.warn('[noncey] setIcon skipped:', e.message));
 }
 
-// Set idle icon on startup (fire-and-forget; errors are caught inside setIcon)
+// Set idle icon on startup and mark SW ready immediately.
+// Icon delivery is best-effort; the message listener below is what matters.
 console.log('[noncey] service worker starting');
-setIcon(false).then(() => console.log('[noncey] service worker ready'));
+setIcon(false);
+console.log('[noncey] service worker ready');
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
@@ -107,7 +105,7 @@ async function handleMessage(msg, sender) {
     case 'LOGOUT': {
       try { await apiFetch('POST', '/api/auth/logout'); } catch {}
       await chrome.storage.sync.remove(['token', 'token_expires_at']);
-      await setIcon(false);
+      setIcon(false);
       return { ok: true };
     }
 
@@ -123,7 +121,7 @@ async function handleMessage(msg, sender) {
     }
 
     case 'SET_ICON': {
-      await setIcon(msg.active);
+      setIcon(msg.active);
       return { ok: true };
     }
 
