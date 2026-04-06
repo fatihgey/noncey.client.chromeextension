@@ -1,38 +1,21 @@
 // noncey — background service worker
 // All API calls are centralised here to avoid content-script CORS restrictions.
-// Icon drawing uses OffscreenCanvas (available in MV3 service workers).
 
 'use strict';
 
 // ── Icon ──────────────────────────────────────────────────────────────────────
 
-const ICON_COLOR_ACTIVE = '#00897b';  // teal — provider matched, authenticated
-const ICON_COLOR_IDLE   = '#9e9e9e';  // gray — no match or not authenticated
-
-function drawIcon(size, color) {
-  const canvas = new OffscreenCanvas(size, size);
-  const ctx    = canvas.getContext('2d');
-  const cx = size / 2, cy = size / 2, r = size / 2 - 1;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${Math.round(size * 0.55)}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('N', cx, cy + 1);
-  return ctx.getImageData(0, 0, size, size);
-}
-
-function setIcon(active) {
-  const color = active ? ICON_COLOR_ACTIVE : ICON_COLOR_IDLE;
-  // Fire-and-forget: do not await — chrome.action.setIcon can hang or reject
-  // during extension reload. Catch the async rejection to prevent SW crash.
+// Uses PNG paths instead of canvas-drawn imageData so the manifest default_icon
+// and the dynamically-set icon are always the same asset.
+// Fire-and-forget: chrome.action.setIcon can hang during extension reload;
+// .catch() suppresses the rejection so the SW does not crash.
+function setIcon() {
   chrome.action.setIcon({
-    imageData: {
-      16: drawIcon(16, color),
-      48: drawIcon(48, color),
+    path: {
+      '16':  'icons/icon16.png',
+      '32':  'icons/icon32.png',
+      '48':  'icons/icon48.png',
+      '128': 'icons/icon128.png',
     },
   }).catch(e => console.warn('[noncey] setIcon skipped:', e.message));
 }
@@ -106,7 +89,7 @@ async function handleMessage(msg, sender) {
     case 'LOGOUT': {
       try { await apiFetch('POST', '/api/auth/logout'); } catch {}
       await chrome.storage.sync.remove(['token', 'token_expires_at']);
-      setIcon(false);
+      setIcon();
       return { ok: true };
     }
 
@@ -122,7 +105,7 @@ async function handleMessage(msg, sender) {
     }
 
     case 'SET_ICON': {
-      setIcon(msg.active);
+      setIcon();
       return { ok: true };
     }
 
