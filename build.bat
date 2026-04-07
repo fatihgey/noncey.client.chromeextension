@@ -17,11 +17,47 @@
 :: scripts and fill OTP fields on arbitrary user-configured URLs, which is the
 :: legitimate purpose. Have a clear description ready for the review notes field.
 
+setlocal
+
 set OUT=noncey.zip
 
+:: ── Version ────────────────────────────────────────────────────────────────────
+:: for /f pipes break with the Git for Windows launcher in elevated cmd sessions;
+:: write to temp files and read back with set /p instead.
+set "GIT_TAG="
+set "GIT_HASH="
+git describe --tags --abbrev=0 > "%TEMP%\noncey_tag.tmp" 2>nul
+set /p GIT_TAG= < "%TEMP%\noncey_tag.tmp"
+del "%TEMP%\noncey_tag.tmp" 2>nul
+git rev-parse --short HEAD > "%TEMP%\noncey_hash.tmp" 2>nul
+set /p GIT_HASH= < "%TEMP%\noncey_hash.tmp"
+del "%TEMP%\noncey_hash.tmp" 2>nul
+
+if "%GIT_TAG%"=="" set "GIT_TAG=1.0.0"
+if "%GIT_HASH%"=="" set "GIT_HASH=unknown"
+
+set "FORMAL_VERSION=%GIT_TAG%"
+if "%FORMAL_VERSION:~0,1%"=="v" set "FORMAL_VERSION=%FORMAL_VERSION:~1%"
+set "DISPLAY_VERSION=%FORMAL_VERSION%+%GIT_HASH%"
+
+echo Version: %DISPLAY_VERSION%
+
+:: ── Patch manifest.json (backup → patch → restore after zip) ──────────────────
+copy /Y manifest.json "%TEMP%\noncey_manifest_backup.tmp" >nul
+powershell -NoProfile -Command "$q=[char]34; $v='%FORMAL_VERSION%'; $f='manifest.json'; (gc $f -Raw) -replace ($q+'version'+$q+': '+$q+'[^'+$q+']+'+$q),($q+'version'+$q+': '+$q+$v+$q) | sc $f -Encoding UTF8 -NoNewline"
+
+:: ── Write options\_version.js (removed after zip) ─────────────────────────────
+>options\_version.js echo window.NONCEY_DISPLAY_VERSION = '%DISPLAY_VERSION%';
+
+:: ── Zip ───────────────────────────────────────────────────────────────────────
 if exist "%OUT%" del "%OUT%"
 
 powershell -NoProfile -Command ^
   "Compress-Archive -Path manifest.json, background.js, content.js, picker.js, popup, options -DestinationPath '%OUT%'"
+
+:: ── Restore source tree ───────────────────────────────────────────────────────
+copy /Y "%TEMP%\noncey_manifest_backup.tmp" manifest.json >nul
+del "%TEMP%\noncey_manifest_backup.tmp"
+del options\_version.js 2>nul
 
 echo Built: %OUT%

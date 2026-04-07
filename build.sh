@@ -21,6 +21,22 @@ set -e
 
 OUT="noncey.zip"
 
+# ── Version ────────────────────────────────────────────────────────────────────
+GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+FORMAL_VERSION="${GIT_TAG}"
+DISPLAY_VERSION="${FORMAL_VERSION}+${GIT_HASH}"
+
+echo "Version: ${DISPLAY_VERSION}"
+
+# ── Patch manifest.json (backup → patch → restore after zip) ──────────────────
+cp manifest.json /tmp/noncey_manifest_backup.json
+sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${FORMAL_VERSION}\"/" manifest.json
+
+# ── Write options/_version.js (removed after zip) ─────────────────────────────
+echo "window.NONCEY_DISPLAY_VERSION = '${DISPLAY_VERSION}';" > options/_version.js
+
+# ── Zip ───────────────────────────────────────────────────────────────────────
 rm -f "$OUT"
 
 zip -r "$OUT" \
@@ -30,5 +46,9 @@ zip -r "$OUT" \
   picker.js \
   popup/ \
   options/
+
+# ── Restore source tree ───────────────────────────────────────────────────────
+cp /tmp/noncey_manifest_backup.json manifest.json
+rm -f /tmp/noncey_manifest_backup.json options/_version.js
 
 echo "Built: $OUT"
