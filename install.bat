@@ -61,10 +61,16 @@ for %%D in (popup options icons) do (
 )
 
 :: ── Version injection ─────────────────────────────────────────────────────────
+:: for /f pipes break with the Git for Windows launcher in elevated cmd sessions;
+:: write to temp files and read back with set /p instead.
 set "GIT_TAG="
 set "GIT_HASH="
-for /f "tokens=*" %%i in ('git describe --tags --abbrev=0 2^>nul') do set "GIT_TAG=%%i"
-for /f "tokens=*" %%i in ('git rev-parse --short HEAD 2^>nul') do set "GIT_HASH=%%i"
+git describe --tags --abbrev=0 > "%TEMP%\noncey_tag.tmp" 2>nul
+set /p GIT_TAG= < "%TEMP%\noncey_tag.tmp"
+del "%TEMP%\noncey_tag.tmp" 2>nul
+git rev-parse --short HEAD > "%TEMP%\noncey_hash.tmp" 2>nul
+set /p GIT_HASH= < "%TEMP%\noncey_hash.tmp"
+del "%TEMP%\noncey_hash.tmp" 2>nul
 
 if "%GIT_TAG%"=="" set "GIT_TAG=1.0.0"
 if "%GIT_HASH%"=="" set "GIT_HASH=unknown"
