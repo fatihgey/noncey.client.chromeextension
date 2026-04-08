@@ -70,3 +70,9 @@ For end-user installation without a development environment:
 
 When the extension is published to the Chrome Web Store, it can be installed directly
 from the store page — no build step required.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
