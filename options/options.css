@@ -263,15 +263,7 @@ button:hover { background: #e8e8e8; }
 
 /* ── RegEx Playground (tab 3) ─────────────────────────────────────────────── */
 
-#tab-regex h1 {
-  font-size: 1.3rem;
-  padding: 20px 0 16px;
-  border-bottom: 1px solid #ddd;
-  margin-bottom: 20px;
-  color: #1a1a2e;
-}
-
-.rx-pane { display: flex; flex-direction: column; gap: 0; }
+section.rx-pane { display: flex; flex-direction: column; gap: 0; }
 
 .hint-inline { font-weight: normal; color: #888; font-size: 12px; }
 
