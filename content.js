@@ -121,6 +121,10 @@ function urlMatchesPrompt(url, prompt) {
             fillField(field, nonce.nonce_value, strategy);
             // Remove from server so it is not re-filled on the next poll.
             chrome.runtime.sendMessage({ type: 'DELETE_NONCE', id: nonce.id }).catch(() => {});
+            const meta = configMeta.find(c => c.name === nonce.configuration_name);
+            if (meta?.id != null) {
+              chrome.runtime.sendMessage({ type: 'REPORT_TEST', id: meta.id }).catch(() => {});
+            }
           }
         }
       }
