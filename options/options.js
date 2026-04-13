@@ -313,9 +313,11 @@ function buildPromptSection(cfg) {
         ${m === 'exact' ? 'Exact' : m === 'prefix' ? 'Begins with' : 'Regex'}
       </label>`).join('');
 
-    const strategyOptions = Object.entries(FILL_STRATEGY_LABELS).map(([v, label]) =>
-      `<option value="${v}"${v === currentStrategy ? ' selected' : ''}>${label}</option>`
-    ).join('');
+    const strategyRadios = Object.entries(FILL_STRATEGY_LABELS).map(([v, label]) => `
+      <label class="radio-label">
+        <input type="radio" name="fill_strategy_${cfg.id}" value="${v}"${v === currentStrategy ? ' checked' : ''}>
+        ${escHtml(label)}
+      </label>`).join('');
 
     div.innerHTML = `
       <div class="field">
@@ -334,7 +336,7 @@ function buildPromptSection(cfg) {
       </div>
       <div class="field">
         <label>Prompt Field Handling <span class="tooltip-icon" title="How noncey enters the OTP into the page field(s). Auto-selected on Pick; change if the default doesn't work.">?</span></label>
-        <select class="prompt-strategy-select">${strategyOptions}</select>
+        <div class="radio-group strategy-radio-group">${strategyRadios}</div>
         <p class="hint strategy-hint"></p>
       </div>
       <div class="config-actions">
@@ -344,16 +346,20 @@ function buildPromptSection(cfg) {
       </div>
     `;
 
-    const urlInput       = div.querySelector('.prompt-url-input');
-    const saveBtn        = div.querySelector('.save-prompt-btn');
-    const strategySelect = div.querySelector('.prompt-strategy-select');
-    const strategyHint   = div.querySelector('.strategy-hint');
+    const urlInput      = div.querySelector('.prompt-url-input');
+    const saveBtn       = div.querySelector('.save-prompt-btn');
+    const strategyHint  = div.querySelector('.strategy-hint');
 
+    function getSelectedStrategy() {
+      return div.querySelector(`input[name="fill_strategy_${cfg.id}"]:checked`)?.value || 'simple';
+    }
     function updateStrategyHint() {
-      strategyHint.textContent = FILL_STRATEGY_DESCRIPTIONS[strategySelect.value] || '';
+      strategyHint.textContent = FILL_STRATEGY_DESCRIPTIONS[getSelectedStrategy()] || '';
     }
     updateStrategyHint();
-    strategySelect.addEventListener('change', updateStrategyHint);
+    div.querySelectorAll(`input[name="fill_strategy_${cfg.id}"]`).forEach(r =>
+      r.addEventListener('change', updateStrategyHint)
+    );
 
     div.querySelector('.pick-config-btn').addEventListener('click', () => startConfigPicker(cfg.id));
 
@@ -365,7 +371,7 @@ function buildPromptSection(cfg) {
       const url          = urlInput.value.trim();
       const selector     = div.querySelector('.prompt-selector-display').value.trim();
       const urlMatch     = div.querySelector(`input[name="url_match_${cfg.id}"]:checked`)?.value || 'prefix';
-      const fillStrategy = strategySelect.value;
+      const fillStrategy = getSelectedStrategy();
       if (!url || !selector) return;
       await pushConfigPrompt(cfg.id, url, selector, urlMatch, fillStrategy);
     });

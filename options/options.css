@@ -176,6 +176,15 @@ h2 {
   gap: 4px;
 }
 
+.strategy-radio-group {
+  flex-direction: column;
+  gap: 4px 0;
+}
+
+.strategy-radio-group .radio-label {
+  margin-right: 0;
+}
+
 .prompt-url-text {
   font-size: 0.85rem;
   word-break: break-all;
