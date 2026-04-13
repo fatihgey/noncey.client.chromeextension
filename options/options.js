@@ -37,8 +37,8 @@ let currentDetailId = null;
 
 const FILL_STRATEGY_LABELS = {
   per_slot: 'Per-Slot Siblings Detection',
-  paste:    'Paste Simulation',
   simple:   'Simple Input',
+  paste:    'Paste Simulation',
 };
 
 const FILL_STRATEGY_DESCRIPTIONS = {
