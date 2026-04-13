@@ -38,6 +38,7 @@ let currentDetailId = null;
 document.addEventListener('DOMContentLoaded', async () => {
   await renderAccount();
   await renderConfigs();
+  initPlayground();
 
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -407,6 +408,69 @@ async function pushConfigPrompt(configId, url, selector, urlMatch = 'prefix') {
   } else {
     await renderConfigs();
   }
+}
+
+// ── RegEx Playground ──────────────────────────────────────────────────────────
+
+function initPlayground() {
+  const patternEl  = $('rx-pattern');
+  const subjectsEl = $('rx-subjects');
+  const resultsEl  = $('rx-results');
+
+  function run() {
+    const raw  = patternEl.value;
+    const urls = subjectsEl.value.split('\n').map(u => u.trim()).filter(Boolean);
+
+    if (!raw) {
+      resultsEl.innerHTML = '<p class="muted">Enter a regex above to see results.</p>';
+      return;
+    }
+
+    let re;
+    try {
+      re = new RegExp(raw);
+    } catch (e) {
+      resultsEl.innerHTML = `<p class="error">Invalid regex: ${escHtml(e.message)}</p>`;
+      return;
+    }
+
+    if (urls.length === 0) {
+      resultsEl.innerHTML = '<p class="muted">Enter URLs above to test.</p>';
+      return;
+    }
+
+    const rows = urls.map(url => {
+      // Mirror the exact logic from popup.js urlMatchesPrompt (regex branch).
+      let matches = false;
+      try { matches = re.test(url); re.lastIndex = 0; } catch { /* invalid */ }
+
+      // Find the first match span for highlighting.
+      let highlighted = escHtml(url);
+      try {
+        const m = re.exec(url);
+        re.lastIndex = 0;
+        if (m && m[0].length > 0) {
+          const pre  = escHtml(url.slice(0, m.index));
+          const hit  = escHtml(m[0]);
+          const post = escHtml(url.slice(m.index + m[0].length));
+          highlighted = `${pre}<mark class="rx-hit">${hit}</mark>${post}`;
+        }
+      } catch { /* keep plain */ }
+
+      const cls   = matches ? 'rx-yes' : 'rx-no';
+      const label = matches ? '&#10003;&nbsp;match' : '&#10007;&nbsp;no match';
+      return `<div class="rx-row ${cls}">` +
+               `<span class="rx-verdict">${label}</span>` +
+               `<span class="rx-url">${highlighted}</span>` +
+             `</div>`;
+    });
+
+    resultsEl.innerHTML = rows.join('');
+  }
+
+  patternEl.addEventListener('input', run);
+  // Re-run when subjects change so results stay accurate after editing URLs.
+  subjectsEl.addEventListener('input', run);
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

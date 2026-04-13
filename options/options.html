@@ -13,6 +13,7 @@
     <div id="tab-bar">
       <button class="tab-btn active" data-tab="configs">Configurations</button>
       <button class="tab-btn" data-tab="server">Server Settings</button>
+      <button class="tab-btn" data-tab="regex">RegEx Playground</button>
     </div>
 
     <!-- ── Tab 1: Configurations ─────────────────────────────────────────── -->
@@ -87,6 +88,31 @@
         </div>
       </section>
       <p id="ext-version-label" style="font-size:12px;color:#999;margin-top:4px;"></p>
+    </div>
+
+  </div>
+
+    <!-- ── Tab 3: RegEx Playground ──────────────────────────────────────────── -->
+    <div id="tab-regex" class="tab-panel hidden">
+      <h1>RegEx Playground</h1>
+
+      <div class="rx-pane">
+        <div class="field">
+          <label for="rx-pattern">Regular expression</label>
+          <input id="rx-pattern" type="text" placeholder="e.g. ^https://example\.com/otp"
+                 spellcheck="false" autocomplete="off" class="rx-mono">
+        </div>
+
+        <div class="field">
+          <label for="rx-subjects">Test URLs <span class="hint-inline">(one per line)</span></label>
+          <textarea id="rx-subjects" rows="6" spellcheck="false"
+                    placeholder="https://example.com/otp&#10;https://other.com/login"></textarea>
+        </div>
+
+        <div id="rx-results" class="rx-results">
+          <p class="muted">Enter a regex above to see results.</p>
+        </div>
+      </div>
     </div>
 
   </div>
