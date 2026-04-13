@@ -88,7 +88,11 @@
     document.removeEventListener('keydown',   onKeydown,   true);
     window.__nonceyPickerActive = false;
     if (selector !== null) {
-      chrome.runtime.sendMessage({ type: 'PICKER_RESULT', selector, url: window.location.href });
+      // Auto-detect strategy: if the page has multiple visible OTC slot inputs,
+      // Per-Slot Siblings Detection is the right default; otherwise Simple Input.
+      const otcSlots = document.querySelectorAll('input[autocomplete="one-time-code"]');
+      const fill_strategy = otcSlots.length > 1 ? 'per_slot' : 'simple';
+      chrome.runtime.sendMessage({ type: 'PICKER_RESULT', selector, url: window.location.href, fill_strategy });
     }
   }
 

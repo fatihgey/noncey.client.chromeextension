@@ -33,6 +33,20 @@ let pendingPickerConfigId = null;
 let allConfigs = [];
 let currentDetailId = null;
 
+// ── Fill strategy metadata ─────────────────────────────────────────────────────
+
+const FILL_STRATEGY_LABELS = {
+  per_slot: 'Per-Slot Siblings Detection',
+  paste:    'Paste Simulation',
+  simple:   'Simple Input',
+};
+
+const FILL_STRATEGY_DESCRIPTIONS = {
+  per_slot: 'Detect all visible input[autocomplete="one-time-code"] elements on the page. If there are N slots and the nonce is N digits long, fill slot i with value[i] — completely bypassing auto-advance events.',
+  paste:    'Dispatch a paste ClipboardEvent on the first field carrying the full OTP in clipboardData. OTC components that implement paste distribution handle it natively.',
+  simple:   'Set the field value via the native input setter and dispatch an InputEvent with the data property set — compatible with React-controlled single-field inputs.',
+};
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -76,13 +90,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for picker results written by background.js into session storage.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'session' || !changes.pickerResult) return;
-    const { selector, url } = changes.pickerResult.newValue;
+    const { selector, url, fill_strategy } = changes.pickerResult.newValue;
 
     if (pendingPickerConfigId !== null) {
       const configId = pendingPickerConfigId;
       pendingPickerConfigId = null;
       const baseUrl = url ? url.split('?')[0] : url;
-      pushConfigPrompt(configId, baseUrl, selector, 'prefix');
+      pushConfigPrompt(configId, baseUrl, selector, 'prefix', fill_strategy || 'simple');
     }
   });
 });
@@ -286,10 +300,11 @@ function openDetail(cfg) {
 }
 
 function buildPromptSection(cfg) {
-  const hasPrompt = !!cfg.prompt;
-  const p = cfg.prompt || {};
-  const currentMatch = p.url_match || 'prefix';
-  const div = document.createElement('div');
+  const hasPrompt      = !!cfg.prompt;
+  const p              = cfg.prompt || {};
+  const currentMatch   = p.url_match    || 'prefix';
+  const currentStrategy = p.fill_strategy || 'simple';
+  const div            = document.createElement('div');
 
   if (cfg.is_owned) {
     const matchRadios = ['exact', 'prefix', 'regex'].map(m => `
@@ -297,6 +312,10 @@ function buildPromptSection(cfg) {
         <input type="radio" name="url_match_${cfg.id}" value="${m}"${m === currentMatch ? ' checked' : ''}>
         ${m === 'exact' ? 'Exact' : m === 'prefix' ? 'Begins with' : 'Regex'}
       </label>`).join('');
+
+    const strategyOptions = Object.entries(FILL_STRATEGY_LABELS).map(([v, label]) =>
+      `<option value="${v}"${v === currentStrategy ? ' selected' : ''}>${label}</option>`
+    ).join('');
 
     div.innerHTML = `
       <div class="field">
@@ -313,15 +332,28 @@ function buildPromptSection(cfg) {
                value="${escHtml(p.selector || '')}"
                placeholder="(use Pick to capture)">
       </div>
+      <div class="field">
+        <label>Prompt Field Handling <span class="tooltip-icon" title="How noncey enters the OTP into the page field(s). Auto-selected on Pick; change if the default doesn't work.">?</span></label>
+        <select class="prompt-strategy-select">${strategyOptions}</select>
+        <p class="hint strategy-hint"></p>
+      </div>
       <div class="config-actions">
         <button class="btn-small pick-config-btn">Pick</button>
-        <button class="btn-primary btn-small save-prompt-btn"${hasPrompt ? '' : ' disabled'}>Save URL</button>
+        <button class="btn-primary btn-small save-prompt-btn"${hasPrompt ? '' : ' disabled'}>Save</button>
         <span class="pick-status"></span>
       </div>
     `;
 
-    const urlInput = div.querySelector('.prompt-url-input');
-    const saveBtn  = div.querySelector('.save-prompt-btn');
+    const urlInput       = div.querySelector('.prompt-url-input');
+    const saveBtn        = div.querySelector('.save-prompt-btn');
+    const strategySelect = div.querySelector('.prompt-strategy-select');
+    const strategyHint   = div.querySelector('.strategy-hint');
+
+    function updateStrategyHint() {
+      strategyHint.textContent = FILL_STRATEGY_DESCRIPTIONS[strategySelect.value] || '';
+    }
+    updateStrategyHint();
+    strategySelect.addEventListener('change', updateStrategyHint);
 
     div.querySelector('.pick-config-btn').addEventListener('click', () => startConfigPicker(cfg.id));
 
@@ -330,11 +362,12 @@ function buildPromptSection(cfg) {
     });
 
     saveBtn.addEventListener('click', async () => {
-      const url      = urlInput.value.trim();
-      const selector = div.querySelector('.prompt-selector-display').value.trim();
-      const urlMatch = div.querySelector(`input[name="url_match_${cfg.id}"]:checked`)?.value || 'prefix';
+      const url          = urlInput.value.trim();
+      const selector     = div.querySelector('.prompt-selector-display').value.trim();
+      const urlMatch     = div.querySelector(`input[name="url_match_${cfg.id}"]:checked`)?.value || 'prefix';
+      const fillStrategy = strategySelect.value;
       if (!url || !selector) return;
-      await pushConfigPrompt(cfg.id, url, selector, urlMatch);
+      await pushConfigPrompt(cfg.id, url, selector, urlMatch, fillStrategy);
     });
 
   } else if (hasPrompt) {
@@ -347,6 +380,10 @@ function buildPromptSection(cfg) {
       <div class="field">
         <label>OTP field selector</label>
         <input type="text" readonly value="${escHtml(p.selector || '')}" style="width:100%;">
+      </div>
+      <div class="field">
+        <label>Prompt Field Handling</label>
+        <span class="muted">${escHtml(FILL_STRATEGY_LABELS[currentStrategy] || currentStrategy)}</span>
       </div>
     `;
   } else {
@@ -395,12 +432,13 @@ async function findPickerTab() {
   return httpTabs[0];
 }
 
-async function pushConfigPrompt(configId, url, selector, urlMatch = 'prefix') {
+async function pushConfigPrompt(configId, url, selector, urlMatch = 'prefix', fillStrategy = 'simple') {
   const statusEl = $('detail-prompt-content')?.querySelector('.pick-status');
   if (statusEl) statusEl.textContent = 'Saving\u2026';
 
   const r = await sendMsg({
     type: 'PUSH_PROMPT', id: configId, url, url_match: urlMatch, selector,
+    fill_strategy: fillStrategy,
   });
 
   if (r.error) {

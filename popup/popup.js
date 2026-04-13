@@ -270,24 +270,23 @@ async function fetchAndRender(manual = false) {
 // ── Fill action ───────────────────────────────────────────────────────────────
 
 async function onNonceClick(nonce) {
-  // Look up the prompt (selector) from server config metadata, keyed by configuration_name.
-  const meta = configMeta.find(c => c.name === nonce.configuration_name);
-  const selector = meta?.prompt?.selector ?? null;
+  // Look up the prompt from server config metadata, keyed by configuration_name.
+  const meta         = configMeta.find(c => c.name === nonce.configuration_name);
+  const selector     = meta?.prompt?.selector     ?? null;
+  const fillStrategy = meta?.prompt?.fill_strategy ?? 'simple';
 
   if (!selector) {
     await navigator.clipboard.writeText(nonce.nonce_value).catch(() => {});
     return;
   }
 
-  // Re-use provider variable name for the fill message shape.
-  const provider = { selector };
-
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {
     const resp = await chrome.tabs.sendMessage(tab.id, {
-      type:     'FILL_FIELD',
-      value:    nonce.nonce_value,
-      selector: provider.selector,
+      type:          'FILL_FIELD',
+      value:         nonce.nonce_value,
+      selector:      selector,
+      fill_strategy: fillStrategy,
     });
     if (resp?.ok) {
       sendMsg({ type: 'DELETE_NONCE', id: nonce.id });

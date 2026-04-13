@@ -120,6 +120,7 @@ async function handleMessage(msg, sender) {
     case 'PUSH_PROMPT': {
       await apiFetch('POST', `/api/configs/${msg.id}/prompt`, {
         url: msg.url, url_match: msg.url_match, selector: msg.selector,
+        fill_strategy: msg.fill_strategy,
       });
       return { ok: true };
     }
@@ -131,7 +132,7 @@ async function handleMessage(msg, sender) {
 
     case 'PICKER_RESULT': {
       await chrome.storage.session.set({
-        pickerResult: { selector: msg.selector, url: msg.url, ts: Date.now() },
+        pickerResult: { selector: msg.selector, url: msg.url, fill_strategy: msg.fill_strategy, ts: Date.now() },
       });
       return { ok: true };
     }
