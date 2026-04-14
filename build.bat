@@ -81,11 +81,11 @@ echo modified=%BUILD_TIME%>> "%VERSIONED_INI%"
 set "REMOTE_HOST=sigma.geneso.de"
 set "REMOTE_DIR=/home_web/r-programming.de/wwwroot/download"
 echo Uploading %VERSIONED_ZIP% to %REMOTE_HOST%...
-plink -batch %REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
-pscp -batch "%VERSIONED_ZIP%" "%REMOTE_HOST%:%REMOTE_DIR%/"
+plink -batch -auto-store-sshkey %REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
+pscp -batch -auto-store-sshkey "%VERSIONED_ZIP%" "%REMOTE_HOST%:%REMOTE_DIR%/"
 if %ERRORLEVEL% neq 0 ( echo ERROR: Upload of ZIP failed. & exit /b 1 )
-pscp -batch "%VERSIONED_INI%" "%REMOTE_HOST%:%REMOTE_DIR%/"
+pscp -batch -auto-store-sshkey "%VERSIONED_INI%" "%REMOTE_HOST%:%REMOTE_DIR%/"
 if %ERRORLEVEL% neq 0 ( echo ERROR: Upload of INI failed. & exit /b 1 )
-plink -batch %REMOTE_HOST% "cd %REMOTE_DIR% && ln -sf %VERSIONED_ZIP% noncey-chromeext.zip && ln -sf %VERSIONED_INI% noncey-chromeext.ini"
+plink -batch -auto-store-sshkey %REMOTE_HOST% "cd %REMOTE_DIR% && ln -sf %VERSIONED_ZIP% noncey-chromeext.zip && ln -sf %VERSIONED_INI% noncey-chromeext.ini"
 if %ERRORLEVEL% neq 0 ( echo ERROR: Symlink update failed. & exit /b 1 )
 echo Uploaded and published as %VERSIONED_ZIP%.
