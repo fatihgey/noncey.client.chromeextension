@@ -61,3 +61,31 @@ del "%TEMP%\noncey_manifest_backup.tmp"
 del options\_version.js 2>nul
 
 echo Built: %OUT%
+
+:: ── Phase 1: versioned artifact + INI ─────────────────────────────────────
+set "FILE_VERSION=%FORMAL_VERSION%-%GIT_HASH%"
+set "VERSIONED_ZIP=noncey-chromeext-v%FILE_VERSION%.zip"
+set "VERSIONED_INI=noncey-chromeext-v%FILE_VERSION%.ini"
+
+copy /Y "%OUT%" "%VERSIONED_ZIP%" >nul
+echo Versioned: %VERSIONED_ZIP%
+
+powershell -NoProfile -Command "[DateTime]::Now.ToString('yyyy-MM-ddTHH:mm:sszzz')" > "%TEMP%\noncey_time.tmp"
+set /p BUILD_TIME= < "%TEMP%\noncey_time.tmp"
+del "%TEMP%\noncey_time.tmp" 2>nul
+echo [main]> "%VERSIONED_INI%"
+echo version=%FILE_VERSION%>> "%VERSIONED_INI%"
+echo modified=%BUILD_TIME%>> "%VERSIONED_INI%"
+
+:: ── Phase 2: upload ────────────────────────────────────────────────────────
+set "REMOTE_HOST=sigma.geneso.de"
+set "REMOTE_DIR=/home_web/r-programming.de/wwwroot/download"
+echo Uploading %VERSIONED_ZIP% to %REMOTE_HOST%...
+plink -batch %REMOTE_HOST% "mkdir -p %REMOTE_DIR%"
+pscp -batch "%VERSIONED_ZIP%" "%REMOTE_HOST%:%REMOTE_DIR%/"
+if %ERRORLEVEL% neq 0 ( echo ERROR: Upload of ZIP failed. & exit /b 1 )
+pscp -batch "%VERSIONED_INI%" "%REMOTE_HOST%:%REMOTE_DIR%/"
+if %ERRORLEVEL% neq 0 ( echo ERROR: Upload of INI failed. & exit /b 1 )
+plink -batch %REMOTE_HOST% "cd %REMOTE_DIR% && ln -sf %VERSIONED_ZIP% noncey-chromeext.zip && ln -sf %VERSIONED_INI% noncey-chromeext.ini"
+if %ERRORLEVEL% neq 0 ( echo ERROR: Symlink update failed. & exit /b 1 )
+echo Uploaded and published as %VERSIONED_ZIP%.
